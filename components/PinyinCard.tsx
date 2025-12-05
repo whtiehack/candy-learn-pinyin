@@ -46,7 +46,7 @@ const PinyinCard: React.FC<PinyinCardProps> = ({ item, size = 'normal', onClick,
       }, duration * 1000);
 
     } catch (e) {
-      console.error(e);
+      console.error("Failed to play audio:", e);
       setError(true);
       setIsLoading(false);
       setIsPlaying(false);
@@ -71,6 +71,9 @@ const PinyinCard: React.FC<PinyinCardProps> = ({ item, size = 'normal', onClick,
 
   if (disabled) {
     colorClasses = "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed";
+  } else if (error) {
+    // Error state style
+    colorClasses = "bg-red-50 border-red-200 text-red-400";
   }
 
   // Active state style (playing or loading)
@@ -78,7 +81,11 @@ const PinyinCard: React.FC<PinyinCardProps> = ({ item, size = 'normal', onClick,
 
   return (
     <div 
-      className={`${baseClasses} ${sizeClasses} ${colorClasses} ${isActive ? 'scale-95 border-b-0 translate-y-1 ring-4 ring-yellow-200' : 'hover:scale-105'}`}
+      className={`
+        ${baseClasses} ${sizeClasses} ${colorClasses} 
+        ${isActive ? 'scale-95 border-b-0 translate-y-1 ring-4 ring-yellow-200' : disabled ? '' : 'hover:scale-105'}
+        ${error ? 'animate-pulse' : ''}
+      `}
       onClick={handleClick}
     >
       {/* Sparkles for active state */}
@@ -99,6 +106,8 @@ const PinyinCard: React.FC<PinyinCardProps> = ({ item, size = 'normal', onClick,
       <div className={`absolute top-2 right-2 text-base md:text-lg opacity-50`}>
         {isLoading ? (
           <span className="animate-spin inline-block">⏳</span>
+        ) : error ? (
+           <span title="播放失败 (Playback failed)">⚠️</span>
         ) : (
           <span className={`${isPlaying ? 'text-yellow-500 animate-bounce' : ''}`}>🔊</span>
         )}

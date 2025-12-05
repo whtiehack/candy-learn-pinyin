@@ -5,21 +5,26 @@ let outputAudioContext: AudioContext | null = null;
 const audioCache = new Map<string, AudioBuffer>();
 const pendingRequests = new Map<string, Promise<AudioBuffer>>();
 
-const getAudioContext = () => {
+const getAudioContext = async () => {
   if (!outputAudioContext) {
-    outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({
-      sampleRate: 24000,
-    });
+    // We do NOT set sampleRate here. We let the browser/hardware decide the output rate.
+    // Setting it to 24000 explicitly can cause silence or failure on devices that don't support it.
+    outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
   }
+  
+  // Browsers require user interaction to resume AudioContext.
+  // We ensure it is running before trying to play.
   if (outputAudioContext.state === 'suspended') {
-    outputAudioContext.resume();
+    await outputAudioContext.resume();
   }
   return outputAudioContext;
 };
 
 // Helper: Decode Base64 string to Uint8Array
 function decode(base64: string) {
-  const binaryString = atob(base64);
+  // Fix for potential whitespace in base64 string
+  const cleanBase64 = base64.replace(/\s/g, '');
+  const binaryString = atob(cleanBase64);
   const len = binaryString.length;
   const bytes = new Uint8Array(len);
   for (let i = 0; i < len; i++) {
@@ -35,15 +40,33 @@ async function decodeAudioData(
   sampleRate: number,
   numChannels: number,
 ): Promise<AudioBuffer> {
-  // Need to copy buffer to prevent detachment issues
-  const bufferCopy = data.slice(0);
-  const dataInt16 = new Int16Array(bufferCopy.buffer);
+  // Ensure the data length is even because Int16Array requires multiples of 2 bytes.
+  // If we have an odd number of bytes, we pad with one zero byte.
+  let bufferToDecode = data;
+  if (data.byteLength % 2 !== 0) {
+    console.warn("Audio data length is odd, padding with 1 byte to fit Int16Array");
+    const newBuffer = new Uint8Array(data.byteLength + 1);
+    newBuffer.set(data);
+    bufferToDecode = newBuffer;
+  }
+
+  // Create Int16Array view on the buffer
+  const dataInt16 = new Int16Array(
+    bufferToDecode.buffer, 
+    bufferToDecode.byteOffset, 
+    bufferToDecode.byteLength / 2
+  );
+
   const frameCount = dataInt16.length / numChannels;
+  
+  // Create a buffer with the source sample rate (24000Hz for Gemini TTS)
+  // The AudioContext will automatically resample this to the hardware rate during playback.
   const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
 
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
     for (let i = 0; i < frameCount; i++) {
+      // Normalize 16-bit signed integer (-32768 to 32767) to float (-1.0 to 1.0)
       channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
     }
   }
@@ -64,18 +87,20 @@ function playBuffer(buffer: AudioBuffer, ctx: AudioContext) {
  */
 export const playPinyinAudio = async (pinyin: string): Promise<number> => {
   try {
-    const ctx = getAudioContext();
+    // 1. Get and Resume Audio Context (Must be triggered by user interaction flow)
+    const ctx = await getAudioContext();
+    
     let audioBuffer: AudioBuffer;
 
-    // 1. Check Memory Cache
+    // 2. Check Memory Cache
     if (audioCache.has(pinyin)) {
       audioBuffer = audioCache.get(pinyin)!;
     } 
-    // 2. Check Pending Requests (Deduplication)
+    // 3. Check Pending Requests (Deduplication)
     else if (pendingRequests.has(pinyin)) {
       audioBuffer = await pendingRequests.get(pinyin)!;
     } 
-    // 3. Fetch from Server API
+    // 4. Fetch from Server API
     else {
       const fetchPromise = (async () => {
         console.log(`Fetching audio from server for: ${pinyin}`);
@@ -98,6 +123,8 @@ export const playPinyinAudio = async (pinyin: string): Promise<number> => {
         }
 
         const audioBytes = decode(data.audioData);
+        
+        // Gemini 2.5 Flash TTS uses 24kHz sample rate
         return await decodeAudioData(audioBytes, ctx, 24000, 1);
       })();
 
@@ -111,6 +138,7 @@ export const playPinyinAudio = async (pinyin: string): Promise<number> => {
       }
     }
 
+    // 5. Play
     playBuffer(audioBuffer, ctx);
     return audioBuffer.duration;
 
