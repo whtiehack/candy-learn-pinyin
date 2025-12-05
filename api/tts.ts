@@ -8,7 +8,7 @@ import { put, list } from "@vercel/blob";
 async function getFromCache(text: string): Promise<string | null> {
   try {
     // Use encodeURIComponent to handle special characters safely
-    // Changed extension to .mp3 since source is MP3
+    // stored as .mp3
     const filename = `audio/${encodeURIComponent(text)}.mp3`;
     
     // Check if the file exists using list
@@ -72,21 +72,39 @@ export default async function handler(request: any, response: any) {
     console.log(`Cache MISS for: ${text}, fetching from external source...`);
 
     // 2. Fetch from external MP3 source
-    // The source is http, but since we are fetching from the server side (Node.js), 
-    // we don't have Mixed Content issues.
-    const externalUrl = `http://du.hanyupinyin.cn/du/pinyin/${text}.mp3`;
+    // MAPPING FIX: Replace all occurrences of 'ü' with 'v' for the file URL
+    // This handles 'ü' -> 'v', 'üe' -> 've', 'lü' -> 'lv', etc.
+    const downloadChar = text.replace(/ü/g, 'v');
+
+    const externalUrl = `http://du.hanyupinyin.cn/du/pinyin/${downloadChar}.mp3`;
     
     const externalResponse = await fetch(externalUrl);
     
+    // ERROR HANDLING: Check status code
     if (!externalResponse.ok) {
-      console.error(`External fetch failed: ${externalResponse.status}`);
-      throw new Error(`Failed to fetch audio from source for: ${text}`);
+      console.error(`External fetch failed: ${externalResponse.status} for ${text} (mapped to ${downloadChar})`);
+      return response.status(404).json({ error: `Audio source not found (Status: ${externalResponse.status})` });
+    }
+
+    // ERROR HANDLING: Check Content-Type to avoid caching 404 HTML pages
+    const contentType = externalResponse.headers.get('content-type');
+    if (contentType && contentType.includes('text/html')) {
+      console.error(`Invalid Content-Type: ${contentType} for ${text}`);
+      return response.status(404).json({ error: 'Audio source returned HTML instead of Audio' });
     }
 
     const arrayBuffer = await externalResponse.arrayBuffer();
+
+    // ERROR HANDLING: Check for empty files
+    if (arrayBuffer.byteLength < 100) {
+      console.error(`File too small (${arrayBuffer.byteLength} bytes) for ${text}`);
+      return response.status(500).json({ error: 'Audio file invalid or empty' });
+    }
+
     const base64Audio = Buffer.from(arrayBuffer).toString('base64');
 
     // 3. Save to Vercel Blob
+    // We save using the ORIGINAL text ('ü') as the key, so the cache hit works next time
     await saveToCache(text, base64Audio);
 
     return response.status(200).json({ audioData: base64Audio });
