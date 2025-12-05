@@ -25,10 +25,10 @@ const App: React.FC = () => {
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in-up">
       <div className="text-center space-y-4">
         <h1 className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 drop-shadow-sm font-serif p-2">
-          萌萌拼音
+          糖果学拼音
         </h1>
         <p className="text-xl md:text-2xl text-gray-600 font-bold">
-          MengMeng Pinyin
+          Candy Pinyin
         </p>
       </div>
 

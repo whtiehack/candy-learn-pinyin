@@ -1,21 +1,53 @@
 import { GoogleGenAI, Modality } from "@google/genai";
+import { put, list } from "@vercel/blob";
 
-// --- Mock Database / Cache Implementation ---
-// In a real production environment on Vercel, you would use Vercel KV (Redis) or a Postgres DB.
-// Example: import { kv } from '@vercel/kv';
-// Since we cannot provision infrastructure here, we use a global variable.
-// Note: Global variables in serverless functions are not persistent across cold starts, 
-// but this demonstrates the structure for "Server Database Caching".
-const GLOBAL_CACHE = new Map<string, string>();
+// --- Vercel Blob Cache Implementation ---
 
-async function getFromDatabase(key: string): Promise<string | null> {
-  // REAL IMPL: return await kv.get(key);
-  return GLOBAL_CACHE.get(key) || null;
+/**
+ * Tries to fetch cached audio data (base64 string) from Vercel Blob storage.
+ */
+async function getFromCache(text: string): Promise<string | null> {
+  try {
+    // Use encodeURIComponent to handle special characters like 'ü' safely in filenames
+    const filename = `audio/${encodeURIComponent(text)}.pcm`;
+    
+    // Check if the file exists using list (more efficient than trying to fetch and failing)
+    const { blobs } = await list({ prefix: filename, limit: 1 });
+    
+    // Ensure we have an exact match on the pathname to avoid prefix collisions
+    const blob = blobs.find(b => b.pathname === filename);
+
+    if (blob) {
+      console.log(`Blob Cache HIT for: ${text}`);
+      const response = await fetch(blob.url);
+      if (!response.ok) throw new Error("Failed to fetch blob content");
+      
+      const arrayBuffer = await response.arrayBuffer();
+      // Convert raw binary back to base64 for the client
+      return Buffer.from(arrayBuffer).toString('base64');
+    }
+  } catch (e) {
+    console.warn("Blob cache read error:", e);
+  }
+  return null;
 }
 
-async function saveToDatabase(key: string, data: string): Promise<void> {
-  // REAL IMPL: await kv.set(key, data);
-  GLOBAL_CACHE.set(key, data);
+/**
+ * Saves generated audio data (base64 string) to Vercel Blob storage.
+ */
+async function saveToCache(text: string, base64Audio: string): Promise<void> {
+  try {
+    const filename = `audio/${encodeURIComponent(text)}.pcm`;
+    const buffer = Buffer.from(base64Audio, 'base64');
+    
+    await put(filename, buffer, { 
+      access: 'public',
+      // No need to return the URL here as we serve base64 directly to client currently
+    });
+    console.log(`Blob Cache SAVED for: ${text}`);
+  } catch (e) {
+    console.warn("Blob cache write error:", e);
+  }
 }
 // --------------------------------------------
 
@@ -31,10 +63,9 @@ export default async function handler(request: Request) {
       return new Response(JSON.stringify({ error: 'Text is required' }), { status: 400 });
     }
 
-    // 1. Check Server Database Cache
-    const cachedAudio = await getFromDatabase(text);
+    // 1. Check Vercel Blob Cache
+    const cachedAudio = await getFromCache(text);
     if (cachedAudio) {
-      console.log(`Cache HIT for: ${text}`);
       return new Response(JSON.stringify({ audioData: cachedAudio }), {
         headers: { 'Content-Type': 'application/json' },
       });
@@ -65,8 +96,8 @@ export default async function handler(request: Request) {
       throw new Error('Failed to generate audio');
     }
 
-    // 3. Save to Server Database
-    await saveToDatabase(text, audioData);
+    // 3. Save to Vercel Blob (Background async optional, but awaiting ensures safety)
+    await saveToCache(text, audioData);
 
     return new Response(JSON.stringify({ audioData }), {
       headers: { 'Content-Type': 'application/json' },
