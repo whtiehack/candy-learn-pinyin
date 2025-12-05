@@ -57,30 +57,51 @@ const App: React.FC = () => {
   const renderLearning = () => (
     <div className="w-full max-w-6xl mx-auto p-4">
       {/* Navigation Header */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-4 rounded-3xl shadow-sm border border-pink-100">
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-3xl shadow-sm border border-pink-100 gap-4">
         <button 
           onClick={() => setGameState(GameState.MENU)}
-          className="mb-4 md:mb-0 text-gray-500 hover:text-pink-500 font-bold flex items-center gap-2 px-4 py-2 rounded-full hover:bg-pink-50 transition-colors"
+          className="
+            group flex items-center gap-3 px-6 py-3 rounded-full 
+            bg-gradient-to-r from-pink-400 to-rose-500 
+            text-white font-bold text-lg shadow-lg 
+            border-b-4 border-pink-700 
+            hover:scale-105 active:scale-95 active:border-b-0 active:translate-y-1 
+            transition-all duration-200
+            mb-4 md:mb-0 w-full md:w-auto justify-center
+          "
         >
-          🏠 主页 (Home)
+          <span className="text-2xl filter drop-shadow">🏠</span>
+          <span className="filter drop-shadow">返回主页 (Home)</span>
         </button>
         
-        <div className="flex bg-gray-100 p-1 rounded-full">
+        <div className="flex flex-wrap justify-center gap-2 bg-gray-50 p-2 rounded-2xl border border-gray-100">
           <button
             onClick={() => setActiveTab(PinyinCategory.INITIALS)}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === PinyinCategory.INITIALS ? 'bg-purple-500 text-white shadow-md' : 'text-gray-500 hover:text-purple-500'}`}
+            className={`px-4 py-2 md:px-6 md:py-2 rounded-xl font-bold transition-all border-b-4 active:border-b-0 active:translate-y-1 ${
+              activeTab === PinyinCategory.INITIALS 
+              ? 'bg-purple-500 border-purple-700 text-white shadow-md transform -translate-y-1' 
+              : 'bg-white border-transparent text-gray-500 hover:bg-purple-50 hover:text-purple-500'
+            }`}
           >
             声母 (Initials)
           </button>
           <button
             onClick={() => setActiveTab(PinyinCategory.FINALS)}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === PinyinCategory.FINALS ? 'bg-pink-500 text-white shadow-md' : 'text-gray-500 hover:text-pink-500'}`}
+            className={`px-4 py-2 md:px-6 md:py-2 rounded-xl font-bold transition-all border-b-4 active:border-b-0 active:translate-y-1 ${
+              activeTab === PinyinCategory.FINALS 
+              ? 'bg-pink-500 border-pink-700 text-white shadow-md transform -translate-y-1' 
+              : 'bg-white border-transparent text-gray-500 hover:bg-pink-50 hover:text-pink-500'
+            }`}
           >
             韵母 (Finals)
           </button>
           <button
             onClick={() => setActiveTab(PinyinCategory.OVERALL)}
-            className={`px-6 py-2 rounded-full font-bold transition-all ${activeTab === PinyinCategory.OVERALL ? 'bg-teal-500 text-white shadow-md' : 'text-gray-500 hover:text-teal-500'}`}
+            className={`px-4 py-2 md:px-6 md:py-2 rounded-xl font-bold transition-all border-b-4 active:border-b-0 active:translate-y-1 ${
+              activeTab === PinyinCategory.OVERALL 
+              ? 'bg-teal-500 border-teal-700 text-white shadow-md transform -translate-y-1' 
+              : 'bg-white border-transparent text-gray-500 hover:bg-teal-50 hover:text-teal-500'
+            }`}
           >
             整体认读
           </button>
@@ -95,7 +116,7 @@ const App: React.FC = () => {
       </div>
       
       {/* Floating Instruction */}
-      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur px-6 py-3 rounded-full shadow-lg border border-pink-200 text-pink-500 font-bold animate-bounce">
+      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur px-6 py-3 rounded-full shadow-lg border border-pink-200 text-pink-500 font-bold animate-bounce whitespace-nowrap z-50 pointer-events-none">
          👆 点击卡片听声音 (Click to Listen)
       </div>
     </div>
