@@ -11,22 +11,20 @@ interface QuizGameProps {
 
 const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
   const [score, setScore] = useState(0);
+  const [questionCount, setQuestionCount] = useState(0);
   const [currentQuestion, setCurrentQuestion] = useState<PinyinChar | null>(null);
   const [options, setOptions] = useState<PinyinChar[]>([]);
   const [feedback, setFeedback] = useState<'idle' | 'correct' | 'wrong'>('idle');
   
-  // Audio states: idle -> loading (fetching) -> playing (sound active) -> idle
   const [audioState, setAudioState] = useState<'idle' | 'loading' | 'playing'>('idle');
   const timerRef = useRef<number | null>(null);
 
-  // Generate a new question
   const generateQuestion = useCallback(() => {
     setFeedback('idle');
     setAudioState('idle');
     const randomIndex = Math.floor(Math.random() * allItems.length);
     const correctItem = allItems[randomIndex];
 
-    // Generate 2 wrong answers
     const wrongOptions: PinyinChar[] = [];
     while (wrongOptions.length < 2) {
       const rand = Math.floor(Math.random() * allItems.length);
@@ -36,14 +34,17 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
       }
     }
 
-    // Shuffle options
     const newOptions = [correctItem, ...wrongOptions].sort(() => Math.random() - 0.5);
-    
     setCurrentQuestion(correctItem);
     setOptions(newOptions);
+    
+    // Auto play sound after a short delay
+    setTimeout(() => {
+        playPinyinAudio(correctItem.char).catch(() => {});
+    }, 500);
+
   }, [allItems]);
 
-  // Initial load
   useEffect(() => {
     generateQuestion();
     return () => {
@@ -52,7 +53,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
   }, [generateQuestion]);
 
   const playCurrentSound = async () => {
-    if (!currentQuestion || audioState !== 'idle') return;
+    if (!currentQuestion) return; // Allow playing even if already playing to re-trigger
     
     setAudioState('loading');
     try {
@@ -76,18 +77,25 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
     if (selected.char === currentQuestion.char) {
       setFeedback('correct');
       setScore(s => s + 10);
+      setQuestionCount(c => c + 1);
+      
+      // Fun Confetti
+      const colors = ['#ff69b4', '#87ceeb', '#ffd700', '#ffa500'];
       confetti({
-        particleCount: 100,
-        spread: 70,
+        particleCount: 150,
+        spread: 100,
         origin: { y: 0.6 },
-        colors: ['#ffb6c1', '#87ceeb', '#ffd700']
+        colors: colors,
+        shapes: ['circle', 'square'],
+        scalar: 1.2
       });
+
       setTimeout(() => {
         generateQuestion();
       }, 1500);
     } else {
       setFeedback('wrong');
-      // Shake effect logic handled by UI classes
+      // Play a little shake or wrong sound logic here if we had it
       setTimeout(() => {
         setFeedback('idle');
       }, 1000);
@@ -95,68 +103,71 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] w-full max-w-4xl mx-auto p-4">
+    <div className="flex flex-col items-center justify-start min-h-full w-full max-w-4xl mx-auto p-4 md:p-8">
       {/* Header Bar */}
-      <div className="w-full flex justify-between items-center mb-8 bg-white p-4 rounded-full shadow-md">
+      <div className="w-full flex justify-between items-center mb-6">
         <button 
           onClick={onBack}
-          className="text-pink-500 font-bold hover:bg-pink-50 px-4 py-2 rounded-full transition-colors"
+          className="bg-white border-b-4 border-gray-200 active:border-b-0 active:translate-y-1 text-pink-500 font-black px-6 py-2 rounded-full shadow-sm hover:bg-pink-50 transition-all flex items-center gap-2"
         >
-          ← 返回 (Back)
+          <span>🔙</span> 返回
         </button>
-        <div className="text-2xl font-bold text-yellow-500">
-          ⭐ {score}
+        <div className="bg-white px-6 py-2 rounded-full border-b-4 border-yellow-200 shadow-sm flex items-center gap-2">
+          <span className="text-2xl">⭐</span>
+          <span className="text-2xl font-black text-yellow-500">{score}</span>
         </div>
       </div>
 
-      {/* Main Game Area */}
-      <div className="text-center w-full">
-        <h2 className="text-3xl font-bold text-purple-600 mb-8 font-serif">
-          听音辨字 (Listen & Choose)
+      {/* Question Area */}
+      <div className="flex flex-col items-center w-full max-w-2xl bg-white/60 backdrop-blur-sm rounded-3xl p-8 border-4 border-white shadow-xl">
+        <h2 className="text-3xl md:text-4xl font-black text-purple-600 mb-6 drop-shadow-sm">
+          听音辨字 🎵
         </h2>
 
         {/* Big Play Button */}
-        <div className="mb-12 flex justify-center">
+        <div className="mb-10 relative">
           <button
             onClick={playCurrentSound}
-            disabled={audioState !== 'idle'}
             className={`
-              w-32 h-32 rounded-full flex items-center justify-center shadow-xl border-b-8 transition-all
-              ${audioState === 'loading'
-                ? 'bg-gray-200 border-gray-300 animate-pulse cursor-wait' 
-                : audioState === 'playing'
-                ? 'bg-yellow-400 border-yellow-600 scale-95 border-b-0 translate-y-2'
-                : 'bg-yellow-300 border-yellow-500 hover:bg-yellow-400 active:border-b-0 active:translate-y-2'
+              w-40 h-40 rounded-full flex items-center justify-center transition-all duration-200
+              border-8 
+              ${audioState === 'playing'
+                ? 'bg-yellow-300 border-yellow-400 scale-95'
+                : 'bg-yellow-400 border-yellow-200 hover:scale-105 hover:-translate-y-1 shadow-lg active:scale-95 active:shadow-inner'
               }
             `}
           >
-            <span className={`text-6xl ${audioState === 'playing' ? 'animate-bounce' : ''}`}>
+            <span className={`text-7xl filter drop-shadow-md ${audioState === 'playing' ? 'animate-bounce' : ''}`}>
               {audioState === 'loading' ? '⏳' : '🔊'}
             </span>
           </button>
+          {audioState !== 'playing' && audioState !== 'loading' && (
+             <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-gray-500 font-bold whitespace-nowrap animate-pulse">
+               点击喇叭听声音
+             </span>
+          )}
         </div>
         
-        <p className="text-gray-500 mb-8">点击喇叭听声音，然后选出正确的拼音宝宝！</p>
-
         {/* Options Grid */}
-        <div className="grid grid-cols-3 gap-4 md:gap-8 justify-items-center">
+        <div className="grid grid-cols-3 gap-4 md:gap-8 justify-items-center w-full">
           {options.map((item, idx) => (
-            <div key={`${item.char}-${idx}`} className="relative">
+            <div key={`${item.char}-${idx}`} className="relative w-full flex justify-center">
                <PinyinCard 
                   item={item} 
                   size="normal"
                   onClick={() => handleOptionClick(item)}
-                  disabled={false}
+                  disabled={feedback !== 'idle' && feedback !== 'wrong'} // Disable other interactions when waiting
                 />
+                
                 {/* Feedback Overlays */}
                 {feedback === 'correct' && item.char === currentQuestion?.char && (
-                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-green-500/20 rounded-3xl animate-bounce">
-                    <span className="text-4xl">✅</span>
+                  <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+                    <span className="text-6xl animate-bounce filter drop-shadow-lg">✅</span>
                   </div>
                 )}
                 {feedback === 'wrong' && item.char !== currentQuestion?.char && (
-                  <div className="absolute inset-0 z-20 flex items-center justify-center bg-red-500/20 rounded-3xl">
-                    <span className="text-4xl">❌</span>
+                  <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none bg-gray-500/20 rounded-2xl">
+                    <span className="text-6xl animate-pulse">❌</span>
                   </div>
                 )}
             </div>
@@ -164,13 +175,13 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
         </div>
 
         {feedback === 'correct' && (
-           <div className="mt-8 text-2xl font-bold text-green-500 animate-bounce">
-             太棒了! (Great Job!)
+           <div className="mt-6 text-3xl font-black text-green-500 animate-bounce tracking-widest drop-shadow-sm">
+             太棒了! 🎉
            </div>
         )}
         {feedback === 'wrong' && (
-           <div className="mt-8 text-xl font-bold text-red-400">
-             再试一次哦! (Try Again!)
+           <div className="mt-6 text-2xl font-black text-red-400 animate-shake">
+             再试一次哦! 💪
            </div>
         )}
       </div>

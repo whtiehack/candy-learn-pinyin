@@ -1,33 +1,21 @@
-// Audio Context Management
-let outputAudioContext: AudioContext | null = null;
+// Client-side Memory Cache for Audio URLs (Blob URLs)
+const audioUrlCache = new Map<string, string>();
+const pendingRequests = new Map<string, Promise<string>>();
 
-// Client-side Memory Cache (avoids re-fetching within the same session)
-const audioCache = new Map<string, AudioBuffer>();
-const pendingRequests = new Map<string, Promise<AudioBuffer>>();
-
-// --- iOS Silent Switch Bypass ---
-// A tiny, silent WAV file encoded in Base64.
-// Playing this via an HTML5 Audio element forces iOS to switch the Audio Session category 
-// to "Playback", which allows sound to play even if the physical mute switch is on.
+// --- iOS Silent Switch Helper ---
+// A silent audio file to wake up the audio subsystem on first user interaction
 const SILENT_WAV_BASE64 = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+let isAudioUnlocked = false;
 
-const unlockIOSAudioSession = () => {
+export const unlockAudio = () => {
+  if (isAudioUnlocked) return;
   const audio = new Audio(SILENT_WAV_BASE64);
-  audio.play().catch((e) => {
-    // Ignore autoplay errors
+  audio.play().then(() => {
+    isAudioUnlocked = true;
+    console.log("Audio unlocked");
+  }).catch(() => {
+    // Interaction might not be sufficient yet, ignore
   });
-};
-// -------------------------------
-
-const getAudioContext = async () => {
-  if (!outputAudioContext) {
-    outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-  }
-  
-  if (outputAudioContext.state === 'suspended') {
-    await outputAudioContext.resume();
-  }
-  return outputAudioContext;
 };
 
 // Helper: Decode Base64 string to Uint8Array
@@ -42,79 +30,82 @@ function decodeBase64(base64: string) {
   return bytes;
 }
 
-// Play Audio Buffer
-function playBuffer(buffer: AudioBuffer, ctx: AudioContext) {
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(ctx.destination);
-  source.start();
-}
-
 /**
- * Fetches Pinyin audio (MP3) from the server API and plays it.
+ * Fetches Pinyin audio from the server API and plays it using HTML5 Audio.
  * Returns the duration of the audio in seconds.
  */
 export const playPinyinAudio = async (pinyin: string): Promise<number> => {
   try {
-    // 0. Fix for iOS Silent Switch
-    unlockIOSAudioSession();
+    let audioUrl: string;
 
-    // 1. Get Audio Context
-    const ctx = await getAudioContext();
-    
-    let audioBuffer: AudioBuffer;
-
-    // 2. Check Memory Cache
-    if (audioCache.has(pinyin)) {
-      audioBuffer = audioCache.get(pinyin)!;
+    // 1. Check Cache
+    if (audioUrlCache.has(pinyin)) {
+      audioUrl = audioUrlCache.get(pinyin)!;
     } 
-    // 3. Check Pending Requests
+    // 2. Check Pending Requests
     else if (pendingRequests.has(pinyin)) {
-      audioBuffer = await pendingRequests.get(pinyin)!;
+      audioUrl = await pendingRequests.get(pinyin)!;
     } 
-    // 4. Fetch from Server API
+    // 3. Fetch from Server
     else {
       const fetchPromise = (async () => {
-        console.log(`Fetching audio for: ${pinyin}`);
+        // console.log(`Fetching audio for: ${pinyin}`);
         
         const response = await fetch('/api/tts', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ text: pinyin }),
         });
 
-        if (!response.ok) {
-          throw new Error(`Server error: ${response.statusText}`);
-        }
+        if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
 
         const data = await response.json();
-        if (!data.audioData) {
-          throw new Error("No audio data received from server");
-        }
+        if (!data.audioData) throw new Error("No audio data received");
 
         const audioBytes = decodeBase64(data.audioData);
-        
-        // Use browser's native decoder for MP3 data.
-        // We must copy the buffer because decodeAudioData might detach it.
-        const bufferCopy = audioBytes.buffer.slice(0) as ArrayBuffer;
-        return await ctx.decodeAudioData(bufferCopy);
+        const blob = new Blob([audioBytes], { type: 'audio/mp3' });
+        const url = URL.createObjectURL(blob);
+        return url;
       })();
 
       pendingRequests.set(pinyin, fetchPromise);
 
       try {
-        audioBuffer = await fetchPromise;
-        audioCache.set(pinyin, audioBuffer);
+        audioUrl = await fetchPromise;
+        audioUrlCache.set(pinyin, audioUrl);
       } finally {
         pendingRequests.delete(pinyin);
       }
     }
 
-    // 5. Play
-    playBuffer(audioBuffer, ctx);
-    return audioBuffer.duration;
+    // 4. Play using HTML5 Audio (Bypasses iOS Mute Switch better than AudioContext)
+    return new Promise((resolve, reject) => {
+      const audio = new Audio(audioUrl);
+      
+      // Allow audio to play concurrently
+      audio.volume = 1.0;
+      
+      // Preload metadata to get duration
+      audio.addEventListener('loadedmetadata', () => {
+         // Resolve immediately with duration, don't wait for end
+         // But we need to actually play it
+         const duration = audio.duration || 1.0; // Fallback 1s
+         
+         audio.play()
+           .then(() => resolve(duration))
+           .catch((e) => {
+             console.warn("Autoplay prevented or failed:", e);
+             reject(e);
+           });
+      });
+
+      audio.addEventListener('error', (e) => {
+        reject(e);
+      });
+
+      // Fallback if metadata takes too long
+      audio.load();
+    });
 
   } catch (error) {
     console.error("Error playing Pinyin audio:", error);

@@ -23,27 +23,26 @@ const PinyinCard: React.FC<PinyinCardProps> = ({ item, size = 'normal', onClick,
   }, []);
 
   const handleClick = async () => {
-    if (disabled || isPlaying || isLoading) return;
+    if (disabled || isLoading) return; // Allow clicking again even if playing to replay
     
-    if (onClick) {
-      onClick();
-    }
+    if (onClick) onClick();
 
     setIsLoading(true);
     setError(false);
     
     try {
-      // Play audio and get duration
       const duration = await playPinyinAudio(item.char);
       
       setIsLoading(false);
       setIsPlaying(true);
 
-      // Keep visual state active for the duration of the audio
       if (timerRef.current) clearTimeout(timerRef.current);
+      // Ensure animation plays for at least 500ms or duration
+      const animDuration = Math.max(duration * 1000, 500);
+      
       timerRef.current = window.setTimeout(() => {
         setIsPlaying(false);
-      }, duration * 1000);
+      }, animDuration);
 
     } catch (e) {
       console.error("Failed to play audio:", e);
@@ -53,64 +52,106 @@ const PinyinCard: React.FC<PinyinCardProps> = ({ item, size = 'normal', onClick,
     }
   };
 
-  const baseClasses = "flex flex-col items-center justify-center rounded-3xl shadow-lg transition-all transform duration-200 border-b-4 select-none cursor-pointer relative overflow-hidden";
+  // Base styles for the 3D Jelly look
+  const baseClasses = "relative flex flex-col items-center justify-center rounded-2xl transition-all duration-150 select-none cursor-pointer transform";
   
+  // Size variations
   const sizeClasses = size === 'large' 
     ? "w-40 h-40 md:w-56 md:h-56 text-6xl md:text-8xl m-4" 
-    : "w-24 h-28 md:w-32 md:h-36 text-4xl md:text-5xl m-2";
+    : "w-24 h-28 md:w-28 md:h-32 text-4xl md:text-5xl m-2";
 
-  // Color coding by category
-  let colorClasses = "";
-  if (item.category === 'initials') {
-    colorClasses = "bg-purple-100 border-purple-300 text-purple-600 hover:bg-purple-200 active:border-b-0 active:translate-y-1";
-  } else if (item.category === 'finals') {
-    colorClasses = "bg-pink-100 border-pink-300 text-pink-600 hover:bg-pink-200 active:border-b-0 active:translate-y-1";
+  // Theme configuration based on category
+  let theme = {
+    bg: 'bg-white',
+    text: 'text-gray-600',
+    border: 'border-gray-200',
+    shadow: 'shadow-gray-200',
+    activeBg: 'active:bg-gray-50'
+  };
+
+  if (!disabled) {
+    if (item.category === 'initials') {
+      // Purple / Blueberry theme
+      theme = {
+        bg: 'bg-purple-100',
+        text: 'text-purple-600',
+        border: 'border-purple-300',
+        shadow: 'shadow-purple-200',
+        activeBg: 'active:bg-purple-200'
+      };
+    } else if (item.category === 'finals') {
+      // Pink / Strawberry theme
+      theme = {
+        bg: 'bg-pink-100',
+        text: 'text-pink-600',
+        border: 'border-pink-300',
+        shadow: 'shadow-pink-200',
+        activeBg: 'active:bg-pink-200'
+      };
+    } else {
+      // Teal / Mint theme
+      theme = {
+        bg: 'bg-teal-100',
+        text: 'text-teal-600',
+        border: 'border-teal-300',
+        shadow: 'shadow-teal-200',
+        activeBg: 'active:bg-teal-200'
+      };
+    }
   } else {
-    colorClasses = "bg-teal-100 border-teal-300 text-teal-600 hover:bg-teal-200 active:border-b-0 active:translate-y-1";
+    theme = {
+       bg: 'bg-gray-100',
+       text: 'text-gray-300',
+       border: 'border-gray-200',
+       shadow: 'shadow-none',
+       activeBg: ''
+    };
+  }
+  
+  // Error Override
+  if (error) {
+    theme.border = 'border-red-300';
+    theme.bg = 'bg-red-50';
   }
 
-  if (disabled) {
-    colorClasses = "bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed";
-  } else if (error) {
-    // Error state style
-    colorClasses = "bg-red-50 border-red-200 text-red-400";
-  }
-
-  // Active state style (playing or loading)
-  const isActive = isPlaying || isLoading;
+  // 3D Button Logic: Border Bottom creates the depth
+  const depthClass = disabled ? 'border-2' : 'border-b-[6px] md:border-b-[8px] border-x-2 border-t-2';
+  
+  // Active/Pressed State
+  const pressedClass = (isPlaying || isLoading) 
+    ? 'border-b-0 translate-y-2 brightness-95' // Physically pressed down
+    : disabled ? '' : 'hover:-translate-y-1 hover:brightness-105 active:border-b-0 active:translate-y-2';
 
   return (
     <div 
       className={`
-        ${baseClasses} ${sizeClasses} ${colorClasses} 
-        ${isActive ? 'scale-95 border-b-0 translate-y-1 ring-4 ring-yellow-200' : disabled ? '' : 'hover:scale-105'}
-        ${error ? 'animate-pulse' : ''}
+        ${baseClasses} ${sizeClasses} 
+        ${theme.bg} ${theme.text} ${theme.border} 
+        ${depthClass} ${pressedClass}
+        shadow-sm
       `}
       onClick={handleClick}
     >
-      {/* Sparkles for active state */}
-      {isActive && (
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-200 opacity-75"></span>
-        </div>
+      {/* Sparkles (Decorative) */}
+      {isPlaying && (
+        <>
+          <span className="absolute -top-2 -right-2 text-xl animate-bounce">✨</span>
+          <span className="absolute -bottom-2 -left-2 text-xl animate-bounce delay-100">⭐</span>
+        </>
       )}
+
+      {/* Main Character */}
+      <span className="z-10 font-black drop-shadow-sm">{item.char}</span>
       
-      <span className="z-10 font-bold font-sans">{item.char}</span>
-      
-      {/* Visual Indicator of Type */}
-      <span className="text-xs md:text-sm font-normal mt-2 opacity-60 z-10">
-        {item.category === 'initials' ? '声母' : item.category === 'finals' ? '韵母' : '整体认读'}
+      {/* Category Label */}
+      <span className="absolute bottom-2 text-xs font-bold opacity-60">
+        {item.category === 'initials' ? '声母' : item.category === 'finals' ? '韵母' : '整体'}
       </span>
 
-      {/* Play Icon / Loader */}
-      <div className={`absolute top-2 right-2 text-base md:text-lg opacity-50`}>
-        {isLoading ? (
-          <span className="animate-spin inline-block">⏳</span>
-        ) : error ? (
-           <span title="播放失败 (Playback failed)">⚠️</span>
-        ) : (
-          <span className={`${isPlaying ? 'text-yellow-500 animate-bounce' : ''}`}>🔊</span>
-        )}
+      {/* Status Icon */}
+      <div className="absolute top-1 right-1">
+        {isLoading && <span className="animate-spin inline-block text-lg">🍭</span>}
+        {isPlaying && !isLoading && <span className="animate-ping text-lg">🔊</span>}
       </div>
     </div>
   );

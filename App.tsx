@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GameState, PinyinCategory } from './types';
 import { INITIALS, FINALS, OVERALL } from './constants';
 import PinyinCard from './components/PinyinCard';
 import QuizGame from './components/QuizGame';
+import { unlockAudio } from './services/geminiService';
 
 const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
@@ -21,126 +22,155 @@ const App: React.FC = () => {
     }
   };
 
+  // Unlock audio on first interaction
+  useEffect(() => {
+    const handleInteraction = () => {
+      unlockAudio();
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+    };
+
+    window.addEventListener('click', handleInteraction);
+    window.addEventListener('touchstart', handleInteraction);
+
+    return () => {
+      window.removeEventListener('click', handleInteraction);
+      window.removeEventListener('touchstart', handleInteraction);
+    };
+  }, []);
+
   const renderMenu = () => (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-8 animate-fade-in-up">
-      <div className="text-center space-y-4">
-        <h1 className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 drop-shadow-sm font-serif p-2">
-          糖果学拼音
+    <div className="flex flex-col items-center justify-center min-h-[80vh] w-full max-w-4xl mx-auto px-4 animate-fade-in">
+      {/* Title Section */}
+      <div className="text-center mb-12 relative">
+        <h1 className="text-7xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-br from-pink-400 via-purple-400 to-teal-400 drop-shadow-2xl font-serif py-4">
+          糖果拼音
         </h1>
-        <p className="text-xl md:text-2xl text-gray-600 font-bold">
-          Candy Pinyin
+        <div className="absolute -top-10 -right-10 text-6xl animate-bounce delay-1000">🍭</div>
+        <div className="absolute -bottom-4 -left-8 text-6xl animate-bounce delay-500">🍬</div>
+        <p className="text-2xl md:text-3xl text-gray-500 font-bold tracking-wider bg-white/50 px-6 py-2 rounded-full inline-block backdrop-blur-sm">
+          Candy Pinyin Land
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-2xl px-8">
+      {/* Menu Buttons */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full px-4 md:px-12">
         <button
           onClick={() => setGameState(GameState.LEARNING)}
-          className="group relative bg-white p-8 rounded-3xl shadow-xl hover:shadow-2xl transition-all border-4 border-pink-200 hover:border-pink-400 transform hover:-translate-y-2"
+          className="
+            group relative bg-white p-8 rounded-[2rem] 
+            border-b-[12px] border-pink-200 active:border-b-0 active:translate-y-3
+            hover:-translate-y-1 hover:border-pink-300
+            transition-all duration-200
+            flex flex-col items-center
+          "
         >
-          <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">📖</div>
-          <h2 className="text-2xl font-bold text-pink-500">学习模式 (Learn)</h2>
-          <p className="text-gray-400 mt-2">点点卡片学发音</p>
+          <div className="bg-pink-100 p-6 rounded-full mb-4 group-hover:scale-110 transition-transform">
+            <span className="text-6xl">📖</span>
+          </div>
+          <h2 className="text-3xl font-black text-pink-500 mb-2">学习模式</h2>
+          <span className="text-gray-400 font-bold">Learn Pinyin</span>
         </button>
 
         <button
           onClick={() => setGameState(GameState.QUIZ)}
-          className="group relative bg-white p-8 rounded-3xl shadow-xl hover:shadow-2xl transition-all border-4 border-yellow-200 hover:border-yellow-400 transform hover:-translate-y-2"
+          className="
+            group relative bg-white p-8 rounded-[2rem] 
+            border-b-[12px] border-yellow-200 active:border-b-0 active:translate-y-3
+            hover:-translate-y-1 hover:border-yellow-300
+            transition-all duration-200
+            flex flex-col items-center
+          "
         >
-          <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">🎮</div>
-          <h2 className="text-2xl font-bold text-yellow-500">游戏挑战 (Quiz)</h2>
-          <p className="text-gray-400 mt-2">听音辨字大闯关</p>
+          <div className="bg-yellow-100 p-6 rounded-full mb-4 group-hover:scale-110 transition-transform">
+            <span className="text-6xl">🎮</span>
+          </div>
+          <h2 className="text-3xl font-black text-yellow-500 mb-2">游戏挑战</h2>
+          <span className="text-gray-400 font-bold">Play Quiz</span>
         </button>
       </div>
     </div>
   );
 
   const renderLearning = () => (
-    <div className="w-full max-w-6xl mx-auto p-4">
+    <div className="w-full max-w-6xl mx-auto p-4 md:p-6 pb-24">
       {/* Navigation Header */}
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 bg-white p-6 rounded-3xl shadow-sm border border-pink-100 gap-4">
+      <div className="flex flex-col lg:flex-row justify-between items-center mb-10 gap-6">
         <button 
           onClick={() => setGameState(GameState.MENU)}
           className="
-            group flex items-center gap-3 px-6 py-3 rounded-full 
-            bg-gradient-to-r from-pink-400 to-rose-500 
-            text-white font-bold text-lg shadow-lg 
-            border-b-4 border-pink-700 
-            hover:scale-105 active:scale-95 active:border-b-0 active:translate-y-1 
-            transition-all duration-200
-            mb-4 md:mb-0 w-full md:w-auto justify-center
+            flex items-center gap-2 px-6 py-3 rounded-full 
+            bg-white text-pink-500 font-black text-xl 
+            border-b-4 border-pink-200
+            active:border-b-0 active:translate-y-1 active:bg-gray-50
+            hover:scale-105 transition-all
+            shadow-sm w-full lg:w-auto justify-center
           "
         >
-          <span className="text-2xl filter drop-shadow">🏠</span>
-          <span className="filter drop-shadow">返回主页 (Home)</span>
+          <span>🏠</span> 返回主页
         </button>
         
-        <div className="flex flex-wrap justify-center gap-2 bg-gray-50 p-2 rounded-2xl border border-gray-100">
-          <button
-            onClick={() => setActiveTab(PinyinCategory.INITIALS)}
-            className={`px-4 py-2 md:px-6 md:py-2 rounded-xl font-bold transition-all border-b-4 active:border-b-0 active:translate-y-1 ${
-              activeTab === PinyinCategory.INITIALS 
-              ? 'bg-purple-500 border-purple-700 text-white shadow-md transform -translate-y-1' 
-              : 'bg-white border-transparent text-gray-500 hover:bg-purple-50 hover:text-purple-500'
-            }`}
-          >
-            声母 (Initials)
-          </button>
-          <button
-            onClick={() => setActiveTab(PinyinCategory.FINALS)}
-            className={`px-4 py-2 md:px-6 md:py-2 rounded-xl font-bold transition-all border-b-4 active:border-b-0 active:translate-y-1 ${
-              activeTab === PinyinCategory.FINALS 
-              ? 'bg-pink-500 border-pink-700 text-white shadow-md transform -translate-y-1' 
-              : 'bg-white border-transparent text-gray-500 hover:bg-pink-50 hover:text-pink-500'
-            }`}
-          >
-            韵母 (Finals)
-          </button>
-          <button
-            onClick={() => setActiveTab(PinyinCategory.OVERALL)}
-            className={`px-4 py-2 md:px-6 md:py-2 rounded-xl font-bold transition-all border-b-4 active:border-b-0 active:translate-y-1 ${
-              activeTab === PinyinCategory.OVERALL 
-              ? 'bg-teal-500 border-teal-700 text-white shadow-md transform -translate-y-1' 
-              : 'bg-white border-transparent text-gray-500 hover:bg-teal-50 hover:text-teal-500'
-            }`}
-          >
-            整体认读
-          </button>
+        {/* Tabs */}
+        <div className="flex flex-wrap justify-center gap-3 bg-white/80 backdrop-blur-md p-3 rounded-3xl shadow-sm border border-white">
+          {[
+            { id: PinyinCategory.INITIALS, label: '声母 (Initials)', color: 'bg-purple-500', border: 'border-purple-700', text: 'text-purple-500' },
+            { id: PinyinCategory.FINALS, label: '韵母 (Finals)', color: 'bg-pink-500', border: 'border-pink-700', text: 'text-pink-500' },
+            { id: PinyinCategory.OVERALL, label: '整体认读', color: 'bg-teal-500', border: 'border-teal-700', text: 'text-teal-500' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as PinyinCategory)}
+              className={`
+                px-5 py-2 md:px-8 md:py-3 rounded-2xl font-black transition-all border-b-4 
+                ${activeTab === tab.id 
+                  ? `${tab.color} ${tab.border} text-white transform -translate-y-1 shadow-md` 
+                  : `bg-transparent border-transparent ${tab.text} hover:bg-gray-50`
+                }
+              `}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6 justify-items-center pb-20">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 md:gap-8 justify-items-center">
         {getCurrentItems().map((item) => (
           <PinyinCard key={item.char} item={item} />
         ))}
       </div>
       
       {/* Floating Instruction */}
-      <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur px-6 py-3 rounded-full shadow-lg border border-pink-200 text-pink-500 font-bold animate-bounce whitespace-nowrap z-50 pointer-events-none">
-         👆 点击卡片听声音 (Click to Listen)
+      <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 
+        bg-white/95 backdrop-blur px-8 py-4 rounded-full 
+        shadow-xl border-2 border-pink-100 
+        text-pink-500 font-bold animate-bounce 
+        whitespace-nowrap z-50 pointer-events-none text-lg flex items-center gap-2"
+      >
+         👆 点击卡片听声音
       </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-pink-50 to-purple-50 overflow-x-hidden selection:bg-pink-200">
-      {/* Top Decoration */}
-      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-pink-400 via-yellow-400 to-teal-400"></div>
+    <div className="min-h-screen relative overflow-x-hidden selection:bg-pink-200">
       
-      {/* Clouds Background (CSS Only) */}
-      <div className="fixed top-20 left-10 text-9xl opacity-10 pointer-events-none select-none animate-pulse">☁️</div>
-      <div className="fixed top-40 right-10 text-8xl opacity-10 pointer-events-none select-none animate-pulse delay-700">☁️</div>
-      <div className="fixed bottom-20 left-20 text-8xl opacity-10 pointer-events-none select-none animate-pulse delay-1000">🌸</div>
+      {/* Background Decor */}
+      <div className="fixed top-20 left-10 text-9xl opacity-20 pointer-events-none select-none animate-pulse blur-sm">☁️</div>
+      <div className="fixed top-60 right-10 text-8xl opacity-20 pointer-events-none select-none animate-pulse delay-700 blur-sm">☁️</div>
+      <div className="fixed bottom-20 left-20 text-8xl opacity-20 pointer-events-none select-none animate-pulse delay-1000 blur-sm">🌸</div>
+      <div className="fixed top-10 right-1/3 text-4xl opacity-30 pointer-events-none select-none animate-spin-slow">✨</div>
 
-      <main className="relative z-10 py-8">
+      <main className="relative z-10 py-6">
         {gameState === GameState.MENU && renderMenu()}
         {gameState === GameState.LEARNING && renderLearning()}
         {gameState === GameState.QUIZ && <QuizGame allItems={allItems} onBack={() => setGameState(GameState.MENU)} />}
       </main>
 
       {/* Footer */}
-      <footer className="fixed bottom-2 right-4 text-xs text-gray-300 pointer-events-none">
-        Powered by Gemini 2.5 Flash
+      <footer className="w-full text-center py-4 text-gray-400 text-sm font-bold opacity-50 relative z-10">
+        Made with ❤️ for Kids
       </footer>
     </div>
   );
