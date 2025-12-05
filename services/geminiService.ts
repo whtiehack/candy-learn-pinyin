@@ -5,6 +5,26 @@ let outputAudioContext: AudioContext | null = null;
 const audioCache = new Map<string, AudioBuffer>();
 const pendingRequests = new Map<string, Promise<AudioBuffer>>();
 
+// --- iOS Silent Switch Bypass ---
+// A tiny, silent WAV file encoded in Base64.
+// Playing this via an HTML5 Audio element forces iOS to switch the Audio Session category 
+// to "Playback", which allows sound to play even if the physical mute switch is on.
+const SILENT_WAV_BASE64 = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+
+const unlockIOSAudioSession = () => {
+  // We check if it looks like an iOS device (simple check) or just run it everywhere as it's harmless.
+  // Running it everywhere ensures consistency.
+  const audio = new Audio(SILENT_WAV_BASE64);
+  
+  // We must play it. Since we are inside a user interaction (click), this is allowed.
+  // We catch errors just in case, so we don't block the main flow.
+  audio.play().catch((e) => {
+    // This might fail if not triggered by a user click, but our app only plays on click.
+    // Console log optional to avoid noise.
+  });
+};
+// -------------------------------
+
 const getAudioContext = async () => {
   if (!outputAudioContext) {
     // We do NOT set sampleRate here. We let the browser/hardware decide the output rate.
@@ -87,6 +107,10 @@ function playBuffer(buffer: AudioBuffer, ctx: AudioContext) {
  */
 export const playPinyinAudio = async (pinyin: string): Promise<number> => {
   try {
+    // 0. Fix for iOS Silent Switch:
+    // Trigger the silent HTML5 audio "hack" to force the session to Playback mode.
+    unlockIOSAudioSession();
+
     // 1. Get and Resume Audio Context (Must be triggered by user interaction flow)
     const ctx = await getAudioContext();
     
