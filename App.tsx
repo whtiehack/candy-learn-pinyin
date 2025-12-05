@@ -48,7 +48,7 @@ const App: React.FC = () => {
         </h1>
         <div className="absolute -top-10 -right-10 text-6xl animate-bounce delay-1000">🍭</div>
         <div className="absolute -bottom-4 -left-8 text-6xl animate-bounce delay-500">🍬</div>
-        <p className="text-2xl md:text-3xl text-gray-500 font-bold tracking-wider bg-white/50 px-6 py-2 rounded-full inline-block backdrop-blur-sm">
+        <p className="text-2xl md:text-3xl text-gray-500 font-bold tracking-wider bg-white/50 px-6 py-2 rounded-full inline-block backdrop-blur-sm font-pinyin">
           Candy Pinyin Land
         </p>
       </div>
@@ -69,7 +69,7 @@ const App: React.FC = () => {
             <span className="text-6xl">📖</span>
           </div>
           <h2 className="text-3xl font-black text-pink-500 mb-2">学习模式</h2>
-          <span className="text-gray-400 font-bold">Learn Pinyin</span>
+          <span className="text-gray-400 font-bold font-pinyin">Learn Pinyin</span>
         </button>
 
         <button
@@ -86,7 +86,7 @@ const App: React.FC = () => {
             <span className="text-6xl">🎮</span>
           </div>
           <h2 className="text-3xl font-black text-yellow-500 mb-2">游戏挑战</h2>
-          <span className="text-gray-400 font-bold">Play Quiz</span>
+          <span className="text-gray-400 font-bold font-pinyin">Play Quiz</span>
         </button>
       </div>
     </div>

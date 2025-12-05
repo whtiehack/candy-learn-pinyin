@@ -140,8 +140,8 @@ const PinyinCard: React.FC<PinyinCardProps> = ({ item, size = 'normal', onClick,
         </>
       )}
 
-      {/* Main Character */}
-      <span className="z-10 font-black drop-shadow-sm">{item.char}</span>
+      {/* Main Character - Using font-pinyin for correct glyph shapes */}
+      <span className="z-10 font-black drop-shadow-sm font-pinyin">{item.char}</span>
       
       {/* Category Label */}
       <span className="absolute bottom-2 text-xs font-bold opacity-60">

@@ -57,12 +57,12 @@ export default async function handler(request: any, response: any) {
   }
 
   try {
-    const { text } = request.body || {};
+    let { text } = request.body || {};
 
     if (!text) {
       return response.status(400).json({ error: 'Text is required' });
     }
-
+    text = text.replace(/ü/g, 'v');
     // 1. Check Vercel Blob Cache
     const cachedAudio = await getFromCache(text);
     if (cachedAudio) {
@@ -74,7 +74,7 @@ export default async function handler(request: any, response: any) {
     // 2. Fetch from external MP3 source
     // MAPPING FIX: Replace all occurrences of 'ü' with 'v' for the file URL
     // This handles 'ü' -> 'v', 'üe' -> 've', 'lü' -> 'lv', etc.
-    const downloadChar = text.replace(/ü/g, 'v');
+    const downloadChar = text
 
     let externalUrl = `http://du.hanyupinyin.cn/du/pinyin/${downloadChar}.mp3`;
     
