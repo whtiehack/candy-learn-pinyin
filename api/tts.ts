@@ -42,7 +42,7 @@ async function saveToCache(text: string, base64Audio: string): Promise<void> {
     
     await put(filename, buffer, { 
       access: 'public',
-      // No need to return the URL here as we serve base64 directly to client currently
+      addRandomSuffix: false // CRITICAL: Ensure exact filename match for cache lookup
     });
     console.log(`Blob Cache SAVED for: ${text}`);
   } catch (e) {
