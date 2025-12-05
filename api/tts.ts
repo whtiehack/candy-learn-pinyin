@@ -1,4 +1,3 @@
-import { GoogleGenAI, Modality } from "@google/genai";
 import { put, list } from "@vercel/blob";
 
 // --- Vercel Blob Cache Implementation ---
@@ -8,13 +7,14 @@ import { put, list } from "@vercel/blob";
  */
 async function getFromCache(text: string): Promise<string | null> {
   try {
-    // Use encodeURIComponent to handle special characters like 'ü' safely in filenames
-    const filename = `audio/${encodeURIComponent(text)}.pcm`;
+    // Use encodeURIComponent to handle special characters safely
+    // Changed extension to .mp3 since source is MP3
+    const filename = `audio/${encodeURIComponent(text)}.mp3`;
     
-    // Check if the file exists using list (more efficient than trying to fetch and failing)
+    // Check if the file exists using list
     const { blobs } = await list({ prefix: filename, limit: 1 });
     
-    // Ensure we have an exact match on the pathname to avoid prefix collisions
+    // Ensure we have an exact match on the pathname
     const blob = blobs.find(b => b.pathname === filename);
 
     if (blob) {
@@ -23,7 +23,7 @@ async function getFromCache(text: string): Promise<string | null> {
       if (!response.ok) throw new Error("Failed to fetch blob content");
       
       const arrayBuffer = await response.arrayBuffer();
-      // Convert raw binary back to base64 for the client
+      // Convert binary back to base64 for the client
       return Buffer.from(arrayBuffer).toString('base64');
     }
   } catch (e) {
@@ -33,16 +33,16 @@ async function getFromCache(text: string): Promise<string | null> {
 }
 
 /**
- * Saves generated audio data (base64 string) to Vercel Blob storage.
+ * Saves audio data (base64 string) to Vercel Blob storage.
  */
 async function saveToCache(text: string, base64Audio: string): Promise<void> {
   try {
-    const filename = `audio/${encodeURIComponent(text)}.pcm`;
+    const filename = `audio/${encodeURIComponent(text)}.mp3`;
     const buffer = Buffer.from(base64Audio, 'base64');
     
     await put(filename, buffer, { 
       access: 'public',
-      addRandomSuffix: false // CRITICAL: Ensure exact filename match for cache lookup
+      addRandomSuffix: false // Ensure exact filename match for cache lookup
     });
     console.log(`Blob Cache SAVED for: ${text}`);
   } catch (e) {
@@ -57,8 +57,6 @@ export default async function handler(request: any, response: any) {
   }
 
   try {
-    // Vercel serverless functions (Node.js runtime) parse JSON body automatically
-    // when Content-Type is application/json.
     const { text } = request.body || {};
 
     if (!text) {
@@ -71,35 +69,27 @@ export default async function handler(request: any, response: any) {
       return response.status(200).json({ audioData: cachedAudio });
     }
 
-    console.log(`Cache MISS for: ${text}, calling Gemini...`);
+    console.log(`Cache MISS for: ${text}, fetching from external source...`);
 
-    // 2. Call Gemini API
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Read this Chinese Pinyin sound clearly and slowly: "${text}".`;
-
-    const result = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: prompt }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
-          },
-        },
-      },
-    });
-
-    const audioData = result.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-
-    if (!audioData) {
-      throw new Error('Failed to generate audio');
+    // 2. Fetch from external MP3 source
+    // The source is http, but since we are fetching from the server side (Node.js), 
+    // we don't have Mixed Content issues.
+    const externalUrl = `http://du.hanyupinyin.cn/du/pinyin/${text}.mp3`;
+    
+    const externalResponse = await fetch(externalUrl);
+    
+    if (!externalResponse.ok) {
+      console.error(`External fetch failed: ${externalResponse.status}`);
+      throw new Error(`Failed to fetch audio from source for: ${text}`);
     }
 
-    // 3. Save to Vercel Blob (Background async optional, but awaiting ensures safety)
-    await saveToCache(text, audioData);
+    const arrayBuffer = await externalResponse.arrayBuffer();
+    const base64Audio = Buffer.from(arrayBuffer).toString('base64');
 
-    return response.status(200).json({ audioData });
+    // 3. Save to Vercel Blob
+    await saveToCache(text, base64Audio);
+
+    return response.status(200).json({ audioData: base64Audio });
 
   } catch (error) {
     console.error('TTS API Error:', error);
