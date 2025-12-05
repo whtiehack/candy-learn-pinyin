@@ -17,11 +17,16 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
   const [feedback, setFeedback] = useState<'idle' | 'correct' | 'wrong'>('idle');
   
   const [audioState, setAudioState] = useState<'idle' | 'loading' | 'playing'>('idle');
+  const [hasPlayed, setHasPlayed] = useState(false); // Track if user has clicked play
+  const [hintShake, setHintShake] = useState(false); // Visual hint state
+
   const timerRef = useRef<number | null>(null);
 
   const generateQuestion = useCallback(() => {
     setFeedback('idle');
     setAudioState('idle');
+    setHasPlayed(false); // Reset for new question
+
     const randomIndex = Math.floor(Math.random() * allItems.length);
     const correctItem = allItems[randomIndex];
 
@@ -38,10 +43,10 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
     setCurrentQuestion(correctItem);
     setOptions(newOptions);
     
-    // Auto play sound after a short delay
-    setTimeout(() => {
-        playPinyinAudio(correctItem.char).catch(() => {});
-    }, 500);
+    // Auto play removed to enforce "click to listen" rule
+    // setTimeout(() => {
+    //     playPinyinAudio(correctItem.char).catch(() => {});
+    // }, 500);
 
   }, [allItems]);
 
@@ -53,8 +58,11 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
   }, [generateQuestion]);
 
   const playCurrentSound = async () => {
-    if (!currentQuestion) return; // Allow playing even if already playing to re-trigger
+    if (!currentQuestion) return; 
     
+    // Mark as played so user can now answer
+    setHasPlayed(true);
+
     setAudioState('loading');
     try {
       const duration = await playPinyinAudio(currentQuestion.char);
@@ -72,6 +80,13 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
   };
 
   const handleOptionClick = (selected: PinyinChar) => {
+    // If user hasn't listened yet, block answer and shake the speaker
+    if (!hasPlayed) {
+        setHintShake(true);
+        setTimeout(() => setHintShake(false), 500);
+        return;
+    }
+
     if (feedback !== 'idle' || !currentQuestion) return;
 
     if (selected.char === currentQuestion.char) {
@@ -125,7 +140,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
         </h2>
 
         {/* Big Play Button */}
-        <div className="mb-10 relative">
+        <div className={`mb-10 relative transition-transform duration-200 ${hintShake ? 'scale-110 rotate-3' : ''}`}>
           <button
             onClick={playCurrentSound}
             className={`
@@ -135,28 +150,33 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
                 ? 'bg-yellow-300 border-yellow-400 scale-95'
                 : 'bg-yellow-400 border-yellow-200 hover:scale-105 hover:-translate-y-1 shadow-lg active:scale-95 active:shadow-inner'
               }
+              ${hintShake ? 'ring-4 ring-red-400 ring-offset-4' : ''}
             `}
           >
             <span className={`text-7xl filter drop-shadow-md ${audioState === 'playing' ? 'animate-bounce' : ''}`}>
               {audioState === 'loading' ? '⏳' : '🔊'}
             </span>
           </button>
+          
+          {/* Hint Text */}
           {audioState !== 'playing' && audioState !== 'loading' && (
-             <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 text-gray-500 font-bold whitespace-nowrap animate-pulse">
-               点击喇叭听声音
+             <span className={`absolute -bottom-8 left-1/2 -translate-x-1/2 font-bold whitespace-nowrap transition-colors duration-200 ${hintShake ? 'text-red-500 scale-110' : 'text-gray-500 animate-pulse'}`}>
+               {hintShake ? '👈 先点这里听声音！' : '点击喇叭听声音'}
              </span>
           )}
         </div>
         
         {/* Options Grid */}
-        <div className="grid grid-cols-3 gap-4 md:gap-8 justify-items-center w-full">
+        <div className={`grid grid-cols-3 gap-4 md:gap-8 justify-items-center w-full transition-opacity duration-300 ${!hasPlayed ? 'opacity-70' : 'opacity-100'}`}>
           {options.map((item, idx) => (
             <div key={`${item.char}-${idx}`} className="relative w-full flex justify-center">
                <PinyinCard 
                   item={item} 
                   size="normal"
                   onClick={() => handleOptionClick(item)}
-                  disabled={feedback !== 'idle' && feedback !== 'wrong'} // Disable other interactions when waiting
+                  // We don't use 'disabled' prop here for hasPlayed because we want to capture the click to show the hint.
+                  // We only disable if we are in feedback mode.
+                  disabled={feedback !== 'idle' && feedback !== 'wrong'} 
                 />
                 
                 {/* Feedback Overlays */}
