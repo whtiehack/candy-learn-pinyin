@@ -76,9 +76,20 @@ export default async function handler(request: any, response: any) {
     // This handles 'ü' -> 'v', 'üe' -> 've', 'lü' -> 'lv', etc.
     const downloadChar = text.replace(/ü/g, 'v');
 
-    const externalUrl = `http://du.hanyupinyin.cn/du/pinyin/${downloadChar}.mp3`;
+    let externalUrl = `http://du.hanyupinyin.cn/du/pinyin/${downloadChar}.mp3`;
     
-    const externalResponse = await fetch(externalUrl);
+    let externalResponse = await fetch(externalUrl);
+    
+    // --- FALLBACK LOGIC START ---
+    // If the default (neutral/no tone) file is missing (404), try the first tone '1'
+    // Example: if 'zi.mp3' is missing, try 'zi1.mp3'
+    if (externalResponse.status === 404) {
+        console.log(`Source 404 for ${downloadChar}.mp3, trying fallback with tone 1...`);
+        const fallbackChar = `${downloadChar}1`;
+        externalUrl = `http://du.hanyupinyin.cn/du/pinyin/${fallbackChar}.mp3`;
+        externalResponse = await fetch(externalUrl);
+    }
+    // --- FALLBACK LOGIC END ---
     
     // ERROR HANDLING: Check status code
     if (!externalResponse.ok) {
