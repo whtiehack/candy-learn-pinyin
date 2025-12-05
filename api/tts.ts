@@ -1,4 +1,5 @@
 import { put, list } from "@vercel/blob";
+import { Buffer } from "buffer";
 
 // --- Vercel Blob Cache Implementation ---
 

@@ -2,6 +2,9 @@
 const audioUrlCache = new Map<string, string>();
 const pendingRequests = new Map<string, Promise<string>>();
 
+// Prefix for LocalStorage keys to avoid collisions
+const LOCAL_STORAGE_PREFIX = 'candy_pinyin_cache_v1_';
+
 // --- iOS Silent Switch Helper ---
 // A silent audio file to wake up the audio subsystem on first user interaction
 const SILENT_WAV_BASE64 = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
@@ -38,43 +41,62 @@ export const playPinyinAudio = async (pinyin: string): Promise<number> => {
   try {
     let audioUrl: string;
 
-    // 1. Check Cache
+    // 1. Check In-Memory Cache (Fastest, for current session)
     if (audioUrlCache.has(pinyin)) {
       audioUrl = audioUrlCache.get(pinyin)!;
     } 
-    // 2. Check Pending Requests
+    // 2. Check Pending Requests (Deduplication)
     else if (pendingRequests.has(pinyin)) {
       audioUrl = await pendingRequests.get(pinyin)!;
     } 
-    // 3. Fetch from Server
+    // 3. Check LocalStorage & Fetch (Persistence)
     else {
-      const fetchPromise = (async () => {
-        // console.log(`Fetching audio for: ${pinyin}`);
-        
-        const response = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: pinyin }),
-        });
+      const storageKey = `${LOCAL_STORAGE_PREFIX}${pinyin}`;
+      const storedBase64 = localStorage.getItem(storageKey);
 
-        if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
-
-        const data = await response.json();
-        if (!data.audioData) throw new Error("No audio data received");
-
-        const audioBytes = decodeBase64(data.audioData);
+      if (storedBase64) {
+        // Cache Hit in LocalStorage: Rehydrate Blob
+        const audioBytes = decodeBase64(storedBase64);
         const blob = new Blob([audioBytes], { type: 'audio/mp3' });
-        const url = URL.createObjectURL(blob);
-        return url;
-      })();
-
-      pendingRequests.set(pinyin, fetchPromise);
-
-      try {
-        audioUrl = await fetchPromise;
+        audioUrl = URL.createObjectURL(blob);
         audioUrlCache.set(pinyin, audioUrl);
-      } finally {
-        pendingRequests.delete(pinyin);
+      } else {
+        // Cache Miss: Fetch from Server
+        const fetchPromise = (async () => {
+          // console.log(`Fetching audio for: ${pinyin}`);
+          
+          const response = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: pinyin }),
+          });
+
+          if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
+
+          const data = await response.json();
+          if (!data.audioData) throw new Error("No audio data received");
+
+          // Save to LocalStorage for next visit
+          try {
+            localStorage.setItem(storageKey, data.audioData);
+          } catch (e) {
+            console.warn("LocalStorage write failed (quota exceeded?):", e);
+          }
+
+          const audioBytes = decodeBase64(data.audioData);
+          const blob = new Blob([audioBytes], { type: 'audio/mp3' });
+          const url = URL.createObjectURL(blob);
+          return url;
+        })();
+
+        pendingRequests.set(pinyin, fetchPromise);
+
+        try {
+          audioUrl = await fetchPromise;
+          audioUrlCache.set(pinyin, audioUrl);
+        } finally {
+          pendingRequests.delete(pinyin);
+        }
       }
     }
 
