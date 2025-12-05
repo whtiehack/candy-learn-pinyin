@@ -51,24 +51,24 @@ async function saveToCache(text: string, base64Audio: string): Promise<void> {
 }
 // --------------------------------------------
 
-export default async function handler(request: Request) {
+export default async function handler(request: any, response: any) {
   if (request.method !== 'POST') {
-    return new Response('Method Not Allowed', { status: 405 });
+    return response.status(405).send('Method Not Allowed');
   }
 
   try {
-    const { text } = await request.json();
+    // Vercel serverless functions (Node.js runtime) parse JSON body automatically
+    // when Content-Type is application/json.
+    const { text } = request.body || {};
 
     if (!text) {
-      return new Response(JSON.stringify({ error: 'Text is required' }), { status: 400 });
+      return response.status(400).json({ error: 'Text is required' });
     }
 
     // 1. Check Vercel Blob Cache
     const cachedAudio = await getFromCache(text);
     if (cachedAudio) {
-      return new Response(JSON.stringify({ audioData: cachedAudio }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return response.status(200).json({ audioData: cachedAudio });
     }
 
     console.log(`Cache MISS for: ${text}, calling Gemini...`);
@@ -99,12 +99,10 @@ export default async function handler(request: Request) {
     // 3. Save to Vercel Blob (Background async optional, but awaiting ensures safety)
     await saveToCache(text, audioData);
 
-    return new Response(JSON.stringify({ audioData }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return response.status(200).json({ audioData });
 
   } catch (error) {
     console.error('TTS API Error:', error);
-    return new Response(JSON.stringify({ error: 'Internal Server Error' }), { status: 500 });
+    return response.status(500).json({ error: 'Internal Server Error' });
   }
 }
