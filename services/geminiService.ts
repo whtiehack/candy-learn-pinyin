@@ -11,11 +11,18 @@ const SILENT_WAV_BASE64 = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAE
 let isAudioUnlocked = false;
 
 export const unlockAudio = () => {
+  // Detect iOS: iPhone, iPad, iPod or iPad (iPadOS 13+ desktop mode)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                (navigator.userAgent.includes("Mac") && "ontouchend" in document);
+
+  // Only execute this hack on iOS devices
+  if (!isIOS) return;
+
   if (isAudioUnlocked) return;
   const audio = new Audio(SILENT_WAV_BASE64);
   audio.play().then(() => {
     isAudioUnlocked = true;
-    console.log("Audio unlocked");
+    console.log("Audio unlocked (iOS)");
   }).catch(() => {
     // Interaction might not be sufficient yet, ignore
   });
