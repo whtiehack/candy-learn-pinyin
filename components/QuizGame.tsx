@@ -91,7 +91,7 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
 
     if (selected.char === currentQuestion.char) {
       setFeedback('correct');
-      setScore(s => s + 10);
+      setScore(s => s + 1);
       setQuestionCount(c => c + 1);
       
       // Fun Confetti
