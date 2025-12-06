@@ -3,6 +3,7 @@ import { GameState, PinyinCategory } from './types';
 import { INITIALS, FINALS, OVERALL } from './constants';
 import PinyinCard from './components/PinyinCard';
 import QuizGame from './components/QuizGame';
+import MemoryGame from './components/MemoryGame';
 import { unlockAudio } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -40,9 +41,9 @@ const App: React.FC = () => {
   }, []);
 
   const renderMenu = () => (
-    <div className="flex flex-col items-center justify-center min-h-[80vh] w-full max-w-4xl mx-auto px-4 animate-fade-in">
+    <div className="flex flex-col items-center justify-center min-h-[80vh] w-full max-w-5xl mx-auto px-4 animate-fade-in">
       {/* Title Section */}
-      <div className="text-center mb-12 relative">
+      <div className="text-center mb-10 md:mb-16 relative">
         <h1 className="text-7xl md:text-9xl font-black text-transparent bg-clip-text bg-gradient-to-br from-pink-400 via-purple-400 to-teal-400 drop-shadow-2xl font-serif py-4">
           糖果拼音
         </h1>
@@ -53,40 +54,61 @@ const App: React.FC = () => {
         </p>
       </div>
 
-      {/* Menu Buttons */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full px-4 md:px-12">
+      {/* Menu Buttons - 3 Columns on desktop */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full px-4 md:px-0">
+        
+        {/* Mode 1: Learn */}
         <button
           onClick={() => setGameState(GameState.LEARNING)}
           className="
-            group relative bg-white p-8 rounded-[2rem] 
+            group relative bg-white p-6 md:p-8 rounded-[2rem] 
             border-b-[12px] border-pink-200 active:border-b-0 active:translate-y-3
             hover:-translate-y-1 hover:border-pink-300
             transition-all duration-200
             flex flex-col items-center
           "
         >
-          <div className="bg-pink-100 p-6 rounded-full mb-4 group-hover:scale-110 transition-transform">
+          <div className="bg-pink-100 p-6 rounded-full mb-4 group-hover:scale-110 transition-transform shadow-inner">
             <span className="text-6xl">📖</span>
           </div>
-          <h2 className="text-3xl font-black text-pink-500 mb-2">学习模式</h2>
+          <h2 className="text-2xl md:text-3xl font-black text-pink-500 mb-2">学习模式</h2>
           <span className="text-gray-400 font-bold font-pinyin">Learn Pinyin</span>
         </button>
 
+        {/* Mode 2: Quiz */}
         <button
           onClick={() => setGameState(GameState.QUIZ)}
           className="
-            group relative bg-white p-8 rounded-[2rem] 
+            group relative bg-white p-6 md:p-8 rounded-[2rem] 
             border-b-[12px] border-yellow-200 active:border-b-0 active:translate-y-3
             hover:-translate-y-1 hover:border-yellow-300
             transition-all duration-200
             flex flex-col items-center
           "
         >
-          <div className="bg-yellow-100 p-6 rounded-full mb-4 group-hover:scale-110 transition-transform">
+          <div className="bg-yellow-100 p-6 rounded-full mb-4 group-hover:scale-110 transition-transform shadow-inner">
             <span className="text-6xl">🎮</span>
           </div>
-          <h2 className="text-3xl font-black text-yellow-500 mb-2">游戏挑战</h2>
-          <span className="text-gray-400 font-bold font-pinyin">Play Quiz</span>
+          <h2 className="text-2xl md:text-3xl font-black text-yellow-500 mb-2">听音辨字</h2>
+          <span className="text-gray-400 font-bold font-pinyin">Quiz Challenge</span>
+        </button>
+
+        {/* Mode 3: Memory */}
+        <button
+          onClick={() => setGameState(GameState.MEMORY)}
+          className="
+            group relative bg-white p-6 md:p-8 rounded-[2rem] 
+            border-b-[12px] border-teal-200 active:border-b-0 active:translate-y-3
+            hover:-translate-y-1 hover:border-teal-300
+            transition-all duration-200
+            flex flex-col items-center
+          "
+        >
+          <div className="bg-teal-100 p-6 rounded-full mb-4 group-hover:scale-110 transition-transform shadow-inner">
+            <span className="text-6xl">🧠</span>
+          </div>
+          <h2 className="text-2xl md:text-3xl font-black text-teal-500 mb-2">记忆配对</h2>
+          <span className="text-gray-400 font-bold font-pinyin">Memory Match</span>
         </button>
       </div>
     </div>
@@ -166,6 +188,7 @@ const App: React.FC = () => {
         {gameState === GameState.MENU && renderMenu()}
         {gameState === GameState.LEARNING && renderLearning()}
         {gameState === GameState.QUIZ && <QuizGame allItems={allItems} onBack={() => setGameState(GameState.MENU)} />}
+        {gameState === GameState.MEMORY && <MemoryGame allItems={allItems} onBack={() => setGameState(GameState.MENU)} />}
       </main>
 
       {/* Footer */}

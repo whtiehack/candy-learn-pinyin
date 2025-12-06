@@ -14,4 +14,5 @@ export enum GameState {
   MENU = 'menu',
   LEARNING = 'learning',
   QUIZ = 'quiz',
+  MEMORY = 'memory',
 }
