@@ -1,56 +1,5 @@
-import { put, list } from "@vercel/blob";
 import { Buffer } from "buffer";
-
-// --- Vercel Blob Cache Implementation ---
-
-/**
- * Tries to fetch cached audio data (base64 string) from Vercel Blob storage.
- */
-async function getFromCache(text: string): Promise<string | null> {
-  try {
-    // Use encodeURIComponent to handle special characters safely
-    // stored as .mp3
-    const filename = `audio/${encodeURIComponent(text)}.mp3`;
-    
-    // Check if the file exists using list
-    const { blobs } = await list({ prefix: filename, limit: 1 });
-    
-    // Ensure we have an exact match on the pathname
-    const blob = blobs.find(b => b.pathname === filename);
-
-    if (blob) {
-      console.log(`Blob Cache HIT for: ${text}`);
-      const response = await fetch(blob.url);
-      if (!response.ok) throw new Error("Failed to fetch blob content");
-      
-      const arrayBuffer = await response.arrayBuffer();
-      // Convert binary back to base64 for the client
-      return Buffer.from(arrayBuffer).toString('base64');
-    }
-  } catch (e) {
-    console.warn("Blob cache read error:", e);
-  }
-  return null;
-}
-
-/**
- * Saves audio data (base64 string) to Vercel Blob storage.
- */
-async function saveToCache(text: string, base64Audio: string): Promise<void> {
-  try {
-    const filename = `audio/${encodeURIComponent(text)}.mp3`;
-    const buffer = Buffer.from(base64Audio, 'base64');
-    
-    await put(filename, buffer, { 
-      access: 'public',
-      addRandomSuffix: false // Ensure exact filename match for cache lookup
-    });
-    console.log(`Blob Cache SAVED for: ${text}`);
-  } catch (e) {
-    console.warn("Blob cache write error:", e);
-  }
-}
-// --------------------------------------------
+import { sql } from "@vercel/postgres";
 
 export default async function handler(request: any, response: any) {
   if (request.method !== 'POST') {
@@ -63,42 +12,51 @@ export default async function handler(request: any, response: any) {
     if (!text) {
       return response.status(400).json({ error: 'Text is required' });
     }
+    
+    // Normalization: 'ü' -> 'v'
     text = text.replace(/ü/g, 'v');
-    // 1. Check Vercel Blob Cache
-    const cachedAudio = await getFromCache(text);
-    if (cachedAudio) {
-      return response.status(200).json({ audioData: cachedAudio });
+
+    // 1. Try fetching from Postgres Cache
+    try {
+      // Ensure table exists (Lazy migration for simple setup)
+      // Note: In a real production env, run this as a migration script.
+      await sql`CREATE TABLE IF NOT EXISTS tts_cache (
+        text VARCHAR(255) PRIMARY KEY,
+        audio_data TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );`;
+
+      const { rows } = await sql`SELECT audio_data FROM tts_cache WHERE text = ${text} LIMIT 1;`;
+      
+      if (rows.length > 0) {
+        console.log(`Cache HIT (Postgres) for: ${text}`);
+        return response.status(200).json({ audioData: rows[0].audio_data });
+      }
+    } catch (dbError) {
+      console.warn("Database error (Cache Read):", dbError);
+      // Continue to fetch from external source if DB fails (fail-open)
     }
 
-    console.log(`Cache MISS for: ${text}, fetching from external source...`);
+    console.log(`Cache MISS. Fetching external TTS for: ${text}`);
 
     // 2. Fetch from external MP3 source
-    // MAPPING FIX: Replace all occurrences of 'ü' with 'v' for the file URL
-    // This handles 'ü' -> 'v', 'üe' -> 've', 'lü' -> 'lv', etc.
-    const downloadChar = text
-
+    const downloadChar = text;
     let externalUrl = `http://du.hanyupinyin.cn/du/pinyin/${downloadChar}.mp3`;
-    
     let externalResponse = await fetch(externalUrl);
     
-    // --- FALLBACK LOGIC START ---
-    // If the default (neutral/no tone) file is missing (404), try the first tone '1'
-    // Example: if 'zi.mp3' is missing, try 'zi1.mp3'
+    // Fallback logic for tones
     if (externalResponse.status === 404) {
         console.log(`Source 404 for ${downloadChar}.mp3, trying fallback with tone 1...`);
         const fallbackChar = `${downloadChar}1`;
         externalUrl = `http://du.hanyupinyin.cn/du/pinyin/${fallbackChar}.mp3`;
         externalResponse = await fetch(externalUrl);
     }
-    // --- FALLBACK LOGIC END ---
     
-    // ERROR HANDLING: Check status code
     if (!externalResponse.ok) {
-      console.error(`External fetch failed: ${externalResponse.status} for ${text} (mapped to ${downloadChar})`);
+      console.error(`External fetch failed: ${externalResponse.status} for ${text}`);
       return response.status(404).json({ error: `Audio source not found (Status: ${externalResponse.status})` });
     }
 
-    // ERROR HANDLING: Check Content-Type to avoid caching 404 HTML pages
     const contentType = externalResponse.headers.get('content-type');
     if (contentType && contentType.includes('text/html')) {
       console.error(`Invalid Content-Type: ${contentType} for ${text}`);
@@ -106,8 +64,6 @@ export default async function handler(request: any, response: any) {
     }
 
     const arrayBuffer = await externalResponse.arrayBuffer();
-
-    // ERROR HANDLING: Check for empty files
     if (arrayBuffer.byteLength < 100) {
       console.error(`File too small (${arrayBuffer.byteLength} bytes) for ${text}`);
       return response.status(500).json({ error: 'Audio file invalid or empty' });
@@ -115,9 +71,17 @@ export default async function handler(request: any, response: any) {
 
     const base64Audio = Buffer.from(arrayBuffer).toString('base64');
 
-    // 3. Save to Vercel Blob
-    // We save using the ORIGINAL text ('ü') as the key, so the cache hit works next time
-    await saveToCache(text, base64Audio);
+    // 3. Save to Postgres Cache
+    try {
+        await sql`
+          INSERT INTO tts_cache (text, audio_data)
+          VALUES (${text}, ${base64Audio})
+          ON CONFLICT (text) DO NOTHING;
+        `;
+        console.log(`Saved to Postgres cache: ${text}`);
+    } catch (dbWriteError) {
+        console.error("Database error (Cache Write):", dbWriteError);
+    }
 
     return response.status(200).json({ audioData: base64Audio });
 
