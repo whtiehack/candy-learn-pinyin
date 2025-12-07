@@ -18,14 +18,7 @@ export default async function handler(request: any, response: any) {
 
     // 1. Try fetching from Postgres Cache
     try {
-      // Ensure table exists (Lazy migration for simple setup)
-      // Note: In a real production env, run this as a migration script.
-      await sql`CREATE TABLE IF NOT EXISTS tts_cache (
-        text VARCHAR(255) PRIMARY KEY,
-        audio_data TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );`;
-
+      // Optimistic approach: Assume table exists and try to select.
       const { rows } = await sql`SELECT audio_data FROM tts_cache WHERE text = ${text} LIMIT 1;`;
       
       if (rows.length > 0) {
@@ -33,8 +26,18 @@ export default async function handler(request: any, response: any) {
         return response.status(200).json({ audioData: rows[0].audio_data });
       }
     } catch (dbError) {
-      console.warn("Database error (Cache Read):", dbError);
-      // Continue to fetch from external source if DB fails (fail-open)
+      // If SELECT fails (likely because table doesn't exist yet), try to create it here.
+      // This ensures we don't run CREATE TABLE on every single request, only on errors.
+      console.log("Cache lookup failed (likely table missing). Initializing table...");
+      try {
+        await sql`CREATE TABLE IF NOT EXISTS tts_cache (
+          text VARCHAR(255) PRIMARY KEY,
+          audio_data TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );`;
+      } catch (createError) {
+        console.error("Failed to create table:", createError);
+      }
     }
 
     console.log(`Cache MISS. Fetching external TTS for: ${text}`);
