@@ -14,7 +14,16 @@ interface CardState {
   item: PinyinChar;
   isFlipped: boolean;
   isMatched: boolean;
+  justMatched?: boolean; // Temporary state for match animation
+  matchAnim?: string; // Store specific animation class for this pair
 }
+
+// Random animations for successful match
+const MATCH_ANIMS = ['animate-pop-success', 'animate-spin-success', 'animate-jump-success'];
+
+// Win Display Constants
+const WIN_ICONS = ['🏆', '👑', '🌟', '🍭', '🎁', '💖', '🦄', '🌈'];
+const WIN_ANIMS = ['animate-bounce', 'animate-tada', 'animate-jelly', 'animate-heart-beat', 'animate-wobble'];
 
 const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
   const [cards, setCards] = useState<CardState[]>([]);
@@ -22,6 +31,9 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [moves, setMoves] = useState(0);
   const [gameWon, setGameWon] = useState(false);
+  
+  // New state for random win display
+  const [winDisplay, setWinDisplay] = useState({ icon: '🏆', anim: 'animate-bounce' });
 
   // Initialize Game
   const startNewGame = useCallback(() => {
@@ -40,6 +52,7 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
         item,
         isFlipped: false,
         isMatched: false,
+        justMatched: false,
       }));
 
     setCards(newCards);
@@ -55,7 +68,7 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
   }, [startNewGame]);
 
   const handleCardClick = (id: number) => {
-    // Ignore if processing (waiting for mismatch flip back), already flipped, or matched
+    // Ignore if processing, already flipped, or matched
     if (isProcessing || flippedIds.includes(id) || cards[id].isMatched) return;
 
     // 1. Flip the card visually
@@ -84,13 +97,30 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
 
     if (card1.item.char === card2.item.char) {
       // MATCH!
+      const randomAnim = MATCH_ANIMS[Math.floor(Math.random() * MATCH_ANIMS.length)];
+
       setTimeout(() => {
         const matchedCards = [...currentCards];
+        // Trigger "Just Matched" animation first
+        matchedCards[id1].justMatched = true;
+        matchedCards[id2].justMatched = true;
         matchedCards[id1].isMatched = true;
         matchedCards[id2].isMatched = true;
+        
+        // Assign the random animation
+        matchedCards[id1].matchAnim = randomAnim;
+        matchedCards[id2].matchAnim = randomAnim;
+
         setCards(matchedCards);
         setFlippedIds([]);
         setIsProcessing(false);
+
+        // Remove "justMatched" flag after animation
+        setTimeout(() => {
+             setCards(prev => prev.map(c => 
+                 (c.id === id1 || c.id === id2) ? { ...c, justMatched: false } : c
+             ));
+        }, 1000);
 
         // Check Win Condition
         if (matchedCards.every((c) => c.isMatched)) {
@@ -110,11 +140,24 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
     }
   };
 
-  const handleWin = () => {
-    setGameWon(true);
-    const duration = 3000;
+  // --- Confetti Strategies ---
+  const runFireworks = (duration: number) => {
     const end = Date.now() + duration;
+    const interval: any = setInterval(function() {
+      if (Date.now() > end) return clearInterval(interval);
+      confetti({
+        startVelocity: 30,
+        spread: 360,
+        ticks: 60,
+        zIndex: 100,
+        particleCount: 50,
+        origin: { x: Math.random(), y: Math.random() - 0.2 }
+      });
+    }, 250);
+  };
 
+  const runSideCannons = (duration: number) => {
+    const end = Date.now() + duration;
     const frame = () => {
       confetti({
         particleCount: 5,
@@ -130,16 +173,115 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
         origin: { x: 1 },
         colors: ['#a864fd', '#29cdff', '#78ff44', '#ff718d', '#fdff6a']
       });
-
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
+      if (Date.now() < end) requestAnimationFrame(frame);
     };
     frame();
   };
 
+  const runStars = () => {
+    const defaults = { spread: 360, ticks: 50, gravity: 0, decay: 0.94, startVelocity: 30, shapes: ['star'], colors: ['#FFE400', '#FFBD00', '#E89400', '#FFCA6C', '#FDFFB8'] };
+    const shoot = () => {
+      confetti({ ...defaults, particleCount: 40, scalar: 1.2, shapes: ['star'] });
+      confetti({ ...defaults, particleCount: 10, scalar: 0.75, shapes: ['circle'] });
+    };
+    setTimeout(shoot, 0);
+    setTimeout(shoot, 100);
+    setTimeout(shoot, 200);
+  };
+
+  const handleWin = () => {
+    setGameWon(true);
+    
+    // 1. Randomize Win Display
+    setWinDisplay({
+      icon: WIN_ICONS[Math.floor(Math.random() * WIN_ICONS.length)],
+      anim: WIN_ANIMS[Math.floor(Math.random() * WIN_ANIMS.length)]
+    });
+
+    // 2. Randomize Confetti Effect
+    const effects = [
+        () => runSideCannons(3000), 
+        () => runFireworks(3000), 
+        runStars
+    ];
+    const selectedEffect = effects[Math.floor(Math.random() * effects.length)];
+    selectedEffect();
+  };
+
   return (
     <div className="flex flex-col items-center justify-start min-h-full w-full max-w-4xl mx-auto p-4 md:p-8">
+      <style>{`
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
+        
+        /* Match Animations */
+        @keyframes popSuccess {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+        @keyframes spinSuccess {
+            0% { transform: rotateY(180deg) scale(1); }
+            100% { transform: rotateY(540deg) scale(0.95); opacity: 0.8; }
+        }
+        @keyframes jumpSuccess {
+            0% { transform: translateY(0); }
+            40% { transform: translateY(-30px) scale(1.1); }
+            100% { transform: translateY(0) scale(0.95); opacity: 0.8; }
+        }
+
+        /* Win Modal Animations */
+        @keyframes tada {
+          0% { transform: scale(1); }
+          10%, 20% { transform: scale(0.9) rotate(-3deg); }
+          30%, 50%, 70%, 90% { transform: scale(1.1) rotate(3deg); }
+          40%, 60%, 80% { transform: scale(1.1) rotate(-3deg); }
+          100% { transform: scale(1) rotate(0); }
+        }
+        @keyframes jelly {
+          0% { transform: scale(1, 1); }
+          30% { transform: scale(1.25, 0.75); }
+          40% { transform: scale(0.75, 1.25); }
+          50% { transform: scale(1.15, 0.85); }
+          65% { transform: scale(0.95, 1.05); }
+          75% { transform: scale(1.05, 0.95); }
+          100% { transform: scale(1, 1); }
+        }
+        @keyframes heartBeat {
+          0% { transform: scale(1); }
+          14% { transform: scale(1.3); }
+          28% { transform: scale(1); }
+          42% { transform: scale(1.3); }
+          70% { transform: scale(1); }
+        }
+        @keyframes wobble {
+          0% { transform: translateX(0%); }
+          15% { transform: translateX(-25%) rotate(-5deg); }
+          30% { transform: translateX(20%) rotate(3deg); }
+          45% { transform: translateX(-15%) rotate(-3deg); }
+          60% { transform: translateX(10%) rotate(2deg); }
+          75% { transform: translateX(-5%) rotate(-1deg); }
+          100% { transform: translateX(0%); }
+        }
+
+        .animate-pop-success { animation: popSuccess 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .animate-spin-success { animation: spinSuccess 0.8s ease-in-out forwards; }
+        .animate-jump-success { animation: jumpSuccess 0.8s ease-out forwards; }
+        
+        .animate-tada { animation: tada 1s both; }
+        .animate-jelly { animation: jelly 0.8s both; }
+        .animate-heart-beat { animation: heartBeat 1.3s ease-in-out infinite; }
+        .animate-wobble { animation: wobble 0.8s both; }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px #2dd4bf; transform: scale(1); }
+            50% { box-shadow: 0 0 40px #2dd4bf; transform: scale(1.05); }
+        }
+        .animate-pulse-glow { animation: pulse-glow 2s infinite; }
+      `}</style>
+
       {/* Header Bar */}
       <div className="w-full flex justify-between items-center mb-6">
         <button
@@ -172,7 +314,8 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
                 className={`
                   w-full h-full transition-all duration-500 transform-style-3d
                   ${card.isFlipped || card.isMatched ? 'rotate-y-180' : ''}
-                  ${card.isMatched ? 'scale-90 opacity-0 md:opacity-100 md:scale-95' : ''}
+                  ${card.isMatched && !card.justMatched ? 'opacity-60 scale-95' : ''}
+                  ${card.justMatched && card.matchAnim ? `${card.matchAnim} z-20` : ''}
                 `}
               >
                 {/* Front (Card Back Design) */}
@@ -188,20 +331,26 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
 
                 {/* Back (Pinyin Content) */}
                 <div className="absolute inset-0 backface-hidden rotate-y-180">
-                   {/* We wrap PinyinCard in a div that fills the space. 
-                       We force 'active' look if it's matched to look nice. */}
+                   {/* We wrap PinyinCard in a div that fills the space. */}
                    <div className="w-full h-full pointer-events-none">
                      <PinyinCard 
                         item={card.item} 
                         size="normal"
-                        // PinyinCard has its own margins/sizes in classes, we override slightly to fit grid
-                        // Actually PinyinCard handles its internal layout well, we just let it be.
-                        // We pass onClick as undefined because parent handles click
                       />
                    </div>
-                   {card.isMatched && (
+                   
+                   {/* Match Effect Overlay */}
+                   {card.justMatched && (
+                      <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                         <span className="text-6xl animate-bounce filter drop-shadow-lg">✨</span>
+                         <span className="absolute text-4xl animate-ping opacity-75">🌟</span>
+                      </div>
+                   )}
+
+                   {/* Permanent Match Indicator */}
+                   {card.isMatched && !card.justMatched && (
                       <div className="absolute inset-0 flex items-center justify-center z-20">
-                         <span className="text-5xl animate-bounce">⭐</span>
+                         <span className="text-5xl animate-bounce delay-100">⭐</span>
                       </div>
                    )}
                 </div>
@@ -213,8 +362,11 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
         {/* Win Overlay / Modal */}
         {gameWon && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-3xl p-8 max-w-sm w-full text-center border-8 border-teal-200 shadow-2xl animate-bounce-in">
-              <div className="text-6xl mb-4">🏆</div>
+            <div className="relative bg-white rounded-3xl p-8 max-w-sm w-full text-center border-8 border-teal-200 shadow-2xl animate-bounce-in overflow-hidden">
+              {/* Background Glow */}
+              <div className="absolute inset-0 bg-teal-50 animate-pulse-glow -z-10 opacity-50"></div>
+              
+              <div className={`text-7xl mb-4 ${winDisplay.anim}`}>{winDisplay.icon}</div>
               <h3 className="text-3xl font-black text-teal-600 mb-2">挑战成功!</h3>
               <p className="text-gray-500 font-bold mb-8">你用了 {moves} 步完成了配对</p>
               
@@ -237,13 +389,6 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
         )}
 
       </div>
-      
-      <style>{`
-        .perspective-1000 { perspective: 1000px; }
-        .transform-style-3d { transform-style: preserve-3d; }
-        .backface-hidden { backface-visibility: hidden; }
-        .rotate-y-180 { transform: rotateY(180deg); }
-      `}</style>
     </div>
   );
 };
