@@ -63,6 +63,13 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
     };
   }, [generateQuestion]);
 
+  // Auto-play audio when a new question is generated
+  useEffect(() => {
+    if (currentQuestion) {
+      playCurrentSound();
+    }
+  }, [currentQuestion]);
+
   const playCurrentSound = async () => {
     if (!currentQuestion) return; 
     setHasPlayed(true);
@@ -82,8 +89,8 @@ const QuizGame: React.FC<QuizGameProps> = ({ allItems, onBack }) => {
 
   const handleOptionClick = (selected: PinyinChar, e: React.MouseEvent) => {
     if (!hasPlayed) {
-        setHintShake(true);
-        setTimeout(() => setHintShake(false), 500);
+        // Auto-play hasn't finished yet, play it now
+        playCurrentSound();
         return;
     }
 

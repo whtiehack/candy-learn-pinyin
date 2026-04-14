@@ -66,36 +66,15 @@ async function fetchAudioData(pinyin: string): Promise<ArrayBuffer> {
   // Return existing promise if already fetching
   if (pendingRequests.has(pinyin)) {
     const buffer = await pendingRequests.get(pinyin)!;
-    // Return a copy to prevent one consumer from neutering the buffer (via decodeAudioData)
     return buffer.slice(0);
   }
 
   const promise = (async () => {
-    const storageKey = `${LOCAL_STORAGE_PREFIX}${pinyin}`;
-    const storedBase64 = localStorage.getItem(storageKey);
-
-    if (storedBase64) {
-      return base64ToArrayBuffer(storedBase64);
-    }
-
-    const response = await fetch('/api/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: pinyin }),
-    });
-
-    if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
-
-    const data = await response.json();
-    if (!data.audioData) throw new Error("No audio data received");
-
-    try {
-      localStorage.setItem(storageKey, data.audioData);
-    } catch (e) {
-      console.warn("LocalStorage write failed:", e);
-    }
-
-    return base64ToArrayBuffer(data.audioData);
+    // Normalize ü → v for filename
+    const filename = pinyin.replace(/ü/g, 'v').replace(/üe/g, 've').replace(/ün/g, 'vn');
+    const response = await fetch(`/audio/${filename}.mp3`);
+    if (!response.ok) throw new Error(`Audio not found: ${filename}`);
+    return await response.arrayBuffer();
   })();
 
   pendingRequests.set(pinyin, promise);

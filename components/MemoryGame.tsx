@@ -303,60 +303,66 @@ const MemoryGame: React.FC<MemoryGameProps> = ({ allItems, onBack }) => {
         </h2>
 
         {/* Game Grid */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 md:gap-6 w-full px-2">
-          {cards.map((card) => (
-            <div
-              key={card.id}
-              className={`aspect-[3/4] relative cursor-pointer perspective-1000 group`}
-              onClick={() => handleCardClick(card.id)}
-            >
+        <div className="grid grid-cols-4 grid-rows-3 gap-2.5 md:gap-4 w-full px-1">
+          {cards.map((card) => {
+            const CARD_BACKS = ['from-pink-300 to-rose-400', 'from-violet-300 to-purple-400', 'from-sky-300 to-blue-400', 'from-amber-300 to-orange-400', 'from-emerald-300 to-teal-400', 'from-fuchsia-300 to-pink-400'];
+            const CARD_EMOJIS = ['🍬', '🍭', '🧁', '🍩', '🍪', '🎀', '🌸', '🦋', '🌈', '🎈', '🎵', '💎'];
+            const bgGrad = CARD_BACKS[card.id % CARD_BACKS.length];
+            const emoji = CARD_EMOJIS[card.id % CARD_EMOJIS.length];
+
+            return (
               <div
-                className={`
-                  w-full h-full transition-all duration-500 transform-style-3d
-                  ${card.isFlipped || card.isMatched ? 'rotate-y-180' : ''}
-                  ${card.isMatched && !card.justMatched ? 'opacity-60 scale-95' : ''}
-                  ${card.justMatched && card.matchAnim ? `${card.matchAnim} z-20` : ''}
-                `}
+                key={card.id}
+                className="aspect-[3/4] relative cursor-pointer perspective-1000"
+                onClick={() => handleCardClick(card.id)}
               >
-                {/* Front (Card Back Design) */}
-                <div className="absolute inset-0 backface-hidden">
-                  <div className="w-full h-full bg-gradient-to-br from-teal-300 to-blue-300 rounded-2xl border-4 border-white shadow-md flex items-center justify-center hover:brightness-105 active:scale-95 transition-transform">
-                     {/* Pattern overlay */}
-                     <div className="absolute inset-0 opacity-20" 
-                          style={{backgroundImage: 'radial-gradient(#fff 20%, transparent 20%)', backgroundSize: '10px 10px'}}>
-                     </div>
-                     <span className="text-4xl md:text-5xl filter drop-shadow-md z-10">🍬</span>
+                <div
+                  className={`
+                    w-full h-full transition-all duration-500 transform-style-3d
+                    ${card.isFlipped || card.isMatched ? 'rotate-y-180' : ''}
+                    ${card.justMatched && card.matchAnim ? `${card.matchAnim} z-20` : ''}
+                  `}
+                >
+                  {/* Front (Card Back) */}
+                  <div className="absolute inset-0 backface-hidden">
+                    <div className={`w-full h-full bg-gradient-to-br ${bgGrad} rounded-2xl border-4 border-white shadow-lg flex items-center justify-center hover:brightness-110 hover:scale-[1.03] active:scale-95 transition-all`}>
+                       <div className="absolute inset-2 border-2 border-white/30 rounded-xl"></div>
+                       <span className="text-3xl md:text-5xl filter drop-shadow-md z-10">{emoji}</span>
+                    </div>
+                  </div>
+
+                  {/* Back (Pinyin Content) */}
+                  <div className="absolute inset-0 backface-hidden rotate-y-180">
+                    <div className={`w-full h-full rounded-2xl border-4 shadow-md flex flex-col items-center justify-center
+                      ${card.isMatched ? 'bg-green-50 border-green-300' : 'bg-white border-indigo-200'}
+                    `}>
+                      <span className={`font-black font-pinyin drop-shadow-sm
+                        ${card.isMatched ? 'text-green-500' : 'text-indigo-600'}
+                        ${card.item.char.length > 2 ? 'text-2xl md:text-3xl' : 'text-3xl md:text-5xl'}
+                      `}>
+                        {card.item.char}
+                      </span>
+                      <span className="text-[10px] md:text-xs font-bold mt-1 opacity-50">
+                        {card.item.category === 'initials' ? '声母' : card.item.category === 'finals' ? '韵母' : '整体'}
+                      </span>
+                    </div>
+
+                    {/* Match Effect */}
+                    {card.justMatched && (
+                      <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+                        <span className="text-5xl md:text-6xl animate-bounce filter drop-shadow-lg">✨</span>
+                      </div>
+                    )}
+                    {card.isMatched && !card.justMatched && (
+                      <div className="absolute top-1 right-1 z-20">
+                        <span className="text-xl md:text-2xl">✅</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {/* Back (Pinyin Content) */}
-                <div className="absolute inset-0 backface-hidden rotate-y-180">
-                   {/* We wrap PinyinCard in a div that fills the space. */}
-                   <div className="w-full h-full pointer-events-none">
-                     <PinyinCard 
-                        item={card.item} 
-                        size="normal"
-                      />
-                   </div>
-                   
-                   {/* Match Effect Overlay */}
-                   {card.justMatched && (
-                      <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
-                         <span className="text-6xl animate-bounce filter drop-shadow-lg">✨</span>
-                         <span className="absolute text-4xl animate-ping opacity-75">🌟</span>
-                      </div>
-                   )}
-
-                   {/* Permanent Match Indicator */}
-                   {card.isMatched && !card.justMatched && (
-                      <div className="absolute inset-0 flex items-center justify-center z-20">
-                         <span className="text-5xl animate-bounce delay-100">⭐</span>
-                      </div>
-                   )}
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Win Overlay / Modal */}
