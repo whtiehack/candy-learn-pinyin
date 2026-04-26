@@ -12,7 +12,7 @@
 *   **🎨 沉浸式糖果UI**: 采用马卡龙色系（粉、紫、蓝绿），搭配波点背景和果冻质感的 3D 按钮，视觉风格软萌可爱。
 *   **🔊 纯正发音**: 覆盖 **声母 (Initials)**、**韵母 (Finals)** 和 **整体认读音节 (Overall)**，点击即读。
 *   **🎮 趣味闯关**: 内置“听音辨字”小游戏，通过游戏化的方式检验学习成果，答对还有缤纷的彩带 (Confetti) 奖励！
-*   **⚡ 智能缓存**: 利用 Vercel Blob 和浏览器双重缓存机制，不仅节省流量，还能实现秒级音频加载。
+*   **⚡ 本地音频**: 所有拼音音频文件随应用一起打包发布，无需外部依赖，离线可用，秒级加载。
 *   **📱 移动端优化**: 针对 iPad 和手机优化触控体验，解决了 iOS 设备音频自动播放和滚动回弹等常见问题。
 
 ---
@@ -25,7 +25,7 @@
 *   **Build Tool**: [Vite](https://vitejs.dev/)
 *   **Styling**: [Tailwind CSS](https://tailwindcss.com/)
 *   **Typography**: Google Fonts (ZCOOL KuaiLe 用于标题, Nunito 用于拼音显示)
-*   **Audio Storage**: [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) (Serverless Storage)
+*   **Audio**: 本地静态 MP3 文件 (`public/audio/`)
 *   **Effects**: Canvas Confetti (庆祝特效)
 
 ---
@@ -38,8 +38,8 @@
 ├── App.tsx                 # 主应用逻辑 (路由与状态管理)
 ├── constants.ts            # 拼音数据字典 (声母、韵母列表)
 ├── types.ts                # TypeScript 类型定义
-├── api/
-│   └── tts.ts              # Serverless Function: 音频获取与缓存代理
+├── public/
+│   └── audio/              # 本地拼音 MP3 音频文件
 ├── components/
 │   ├── PinyinCard.tsx      # 拼音卡片组件 (含播放逻辑与果冻动画)
 │   └── QuizGame.tsx        # 测验游戏组件 (听力测试逻辑)
@@ -60,39 +60,24 @@
 npm install
 ```
 
-### 3. 环境变量 (Vercel Blob)
-本项目使用了 Vercel Blob 进行音频缓存。如果在本地运行 API 功能，你需要连接到 Vercel 项目并拉取环境变量，或者配置 `.env.local`：
+### 3. 启动开发服务器
 
-```bash
-# 获取 Vercel Blob 凭证 (需先安装 Vercel CLI)
-vercel link
-vercel env pull .env.local
-```
-
-### 4. 启动开发服务器
-由于项目包含 Serverless API (`api/tts.ts`)，推荐使用 Vercel CLI 启动以支持 API 路由：
-
-```bash
-vercel dev
-```
-或者仅启动前端 (API 调用可能会失败):
 ```bash
 npm run dev
 ```
 
-打开浏览器访问 `http://localhost:3000`。
+打开浏览器访问 `http://localhost:5173`。
 
 ---
 
 ## 🎵 音频处理机制 (Audio Architecture)
 
-为了保证音频的稳定性和加载速度，本项目设计了一套三级音频获取策略：
+所有拼音音频以静态 MP3 文件的形式打包在 `public/audio/` 目录中，随应用一同部署，无需任何后端或外部存储服务。
 
-1.  **浏览器内存缓存**: 前端 `geminiService.ts` 维护一个 `Map`，已加载过的音频直接从内存播放，零延迟。
-2.  **Vercel Blob 云端缓存**: 当请求新的拼音时，API 会优先检查 Vercel Blob 存储桶中是否已有生成的 MP3 文件。
-3.  **外部源回源**: 如果缓存未命中，服务器会从第三方拼音库抓取音频，**自动转存**至 Vercel Blob，供下次快速访问。
+1.  **静态文件直出**: 音频文件由 CDN/Pages 直接服务，加载速度极快。
+2.  **浏览器内存缓存**: `geminiService.ts` 维护一个 `Map`，已加载过的音频直接从内存播放，零延迟。
 
-> **注意**: 针对 iOS Safari 的自动播放限制，项目中包含了一个 `unlockAudio` 机制，在用户第一次交互时播放静音片段以“唤醒”音频引擎。
+> **注意**: 针对 iOS Safari 的自动播放限制，项目中包含了一个 `unlockAudio` 机制，在用户第一次交互时播放静音片段以”唤醒”音频引擎。
 
 ---
 
